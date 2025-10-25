@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Achyut</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            min-height: 100vh;
+        }
+
+        .container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            background-image: url('homepage.jpg');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+
+        /* Center Content Area - positioned over the circle in the image */
+        .center-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .interaction-area {
+            width: 350px;
+            height: 350px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Name overlay box */
+        .name-box {
+            background: #110F1A;
+            padding: 50px 80px 50px 180px;
+            border-radius: 8px;
+            position: absolute;
+            top: 50%;
+            left: 150;
+            transform: translate(-15%, -50%);
+            z-index: 15;
+            min-width: 700px;
+        }
+
+        .name-text {
+            color: white;
+            font-size: 2.5rem;
+            letter-spacing: 16px;
+            font-weight: 300;
+            text-transform: uppercase;
+            margin-left: -20px;
+        }
+
+        /* Navigation Dots */
+        .nav-dot {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: white;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 20;
+        }
+
+        .nav-dot:hover {
+            transform: scale(1.4);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
+        }
+
+        /* Position dots on left side of circle */
+        .dot-1 {
+            top: 20%;
+            left: -5px;
+        }
+
+        .dot-2 {
+            top: 37%;
+            left: -5px;
+        }
+
+        .dot-3 {
+            top: 54%;
+            left: -5px;
+        }
+
+        .dot-4 {
+            top: 71%;
+            left: -5px;
+        }
+
+        /* Navigation popup */
+        .nav-popup {
+            position: absolute;
+            left: 0;
+            display: flex;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            transform: translateX(-10px);
+            z-index: 20;
+        }
+
+        .nav-dot:hover + .nav-popup {
+            opacity: 1;
+            pointer-events: all;
+            transform: translateX(0);
+        }
+
+        .nav-popup:hover {
+            opacity: 1;
+            pointer-events: all;
+            transform: translateX(0);
+        }
+
+        .connector {
+            width: 0;
+            height: 1.5px;
+            background: linear-gradient(90deg, white, rgba(255, 255, 255, 0.2));
+            margin-left: 10px;
+            transition: width 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        .nav-dot:hover + .nav-popup .connector,
+        .nav-popup:hover .connector {
+            width: 100px;
+        }
+
+        .nav-label {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 20px;
+            border-radius: 4px;
+            margin-left: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            white-space: nowrap;
+            backdrop-filter: blur(10px);
+        }
+
+        .nav-label a {
+            color: #0f1117;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+
+        .nav-label:hover {
+            background: white;
+            transform: scale(1.05);
+        }
+
+        @media (max-width: 768px) {
+            .interaction-area {
+                width: 240px;
+                height: 240px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Center Interactive Area -->
+        <div class="center-content">
+            <div class="interaction-area">
+                <!-- Name Box -->
+                <div class="name-box">
+                    <div class="name-text">ACHYUT</div>
+                </div>
+
+                <!-- Navigation Dots -->
+                <div class="nav-dot dot-1"></div>
+                <div class="nav-popup" style="top: 20%; left: -5px;">
+                    <div class="connector"></div>
+                    <div class="nav-label">
+                        <a href="about.html">About</a>
+                    </div>
+                </div>
+
+                <div class="nav-dot dot-2"></div>
+                <div class="nav-popup" style="top: 37%; left: -5px;">
+                    <div class="connector"></div>
+                    <div class="nav-label">
+                        <a href="portfolio.html">Portfolio</a>
+                    </div>
+                </div>
+
+                <div class="nav-dot dot-3"></div>
+                <div class="nav-popup" style="top: 54%; left: -5px;">
+                    <div class="connector"></div>
+                    <div class="nav-label">
+                        <a href="services.html">Services</a>
+                    </div>
+                </div>
+
+                <div class="nav-dot dot-4"></div>
+                <div class="nav-popup" style="top: 71%; left: -5px;">
+                    <div class="connector"></div>
+                    <div class="nav-label">
+                        <a href="contact.html">Contact</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
