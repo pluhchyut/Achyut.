@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Achyut</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://flackr.github.io/scroll-timeline/dist/scroll-timeline.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/typeit/8.7.1/index.umd.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/locomotive-scroll/4.1.4/locomotive-scroll.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/locomotive-scroll/4.1.4/locomotive-scroll.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -14,60 +14,106 @@
             box-sizing: border-box;
         }
 
+        html {
+            scroll-snap-type: y mandatory;
+            timeline-scope: --section;
+        }
+
         body {
-            font-family: 'Arial', sans-serif;
-            overflow-x: hidden;
+            font-family: 'Helvetica Neue', 'Arial', sans-serif;
             min-height: 100vh;
+            background: #000;
         }
 
-        #smooth-scroll {
+        section {
+            scroll-snap-align: start;
+            scroll-snap-stop: always;
+            view-timeline: --section;
+            height: 100dvh;
+        }
+
+        .section-content {
             overflow: hidden;
+            position: fixed;
+            inset: 0;
+            animation: blink ease-in-out both;
+            animation-timeline: --section;
+            background: #000;
         }
 
-        .container {
-            position: relative;
-            width: 100%;
-            min-height: 100vh;
-            background: linear-gradient(135deg, rgba(0,0,0,0.8) 0%, rgba(15,17,23,0.9) 100%),
-                        url('homepage.jpg');
-            background-size: cover;
+        @keyframes blink {
+            0%, 100% {
+                filter: blur(0.5rem) contrast(4);
+                opacity: 0;
+                visibility: hidden;
+            }
+            50% {
+                filter: blur(0) contrast(1);
+                opacity: 1;
+                visibility: visible;
+            }
+        }
+
+        /* Navigation Dots */
+        .nav-dots-container {
+            position: fixed;
+            left: 30px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 50;
+            background: rgba(20, 25, 35, 0.85);
+            backdrop-filter: blur(15px);
+            padding: 25px 15px;
+            border-radius: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        .nav-dot {
+            width: 10px;
+            height: 10px;
+            background: white;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 20px 0;
+        }
+
+        .nav-dot:hover {
+            transform: scale(1.4);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
+        }
+
+        .nav-dot:first-child { margin-top: 0; }
+        .nav-dot:last-child { margin-bottom: 0; }
+
+        /* Home Section */
+        .home-section {
+            background: url('home2.gif');
+            background-size: 100% 100%;
             background-position: center;
             background-repeat: no-repeat;
-            background-attachment: fixed;
             display: flex;
             align-items: center;
             justify-content: center;
-        }
-
-        /* Center Content Area - positioned over the circle in the image */
-        .center-content {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-        }
-
-        .interaction-area {
-            width: 350px;
-            height: 450px;
             position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
         }
 
-        /* Name overlay box */
+        .center-content {
+            text-align: center;
+            position: relative;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+
         .name-box {
-            background: #110F1A;
+            background: rgba(17, 15, 26, 0.7);
+            backdrop-filter: blur(10px);
             padding: 50px 180px 50px 80px;
             border-radius: 8px;
-            position: absolute;
-            top: 50%;
-            right: 150px;
-            transform: translateY(-50%);
-            z-index: 15;
             min-width: 700px;
+            display: inline-block;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .name-text {
@@ -77,137 +123,13 @@
             font-weight: 200;
             text-transform: uppercase;
             text-align: right;
-            font-family: 'Helvetica Neue', 'Arial', sans-serif;
         }
 
-        /* Navigation Dots Container */
-        .nav-dots-container {
-            position: fixed;
-            left: 30px;
-            top: 50%;
-            transform: translateY(-50%);
-            z-index: 30;
-            background: rgba(20, 25, 35, 0.85);
-            backdrop-filter: blur(15px);
-            padding: 25px 15px;
-            border-radius: 25px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-        }
-
-        /* Navigation Dots */
-        .nav-dot {
-            position: relative;
-            width: 10px;
-            height: 10px;
-            background: white;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            z-index: 20;
-            margin: 20px 0;
-        }
-
-        .nav-item {
-            position: relative;
-            display: flex;
-            align-items: center;
-        }
-
-        .nav-dot:hover {
-            transform: scale(1.4);
-            box-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
-        }
-
-        /* Position dots on left side of circle */
-        .dot-1 {
-            margin-top: 0;
-            margin-bottom: 20px;
-        }
-
-        .dot-2, .dot-3 {
-            margin: 20px 0;
-        }
-
-        .dot-4 {
-            margin-top: 20px;
-            margin-bottom: 0;
-        }
-
-        /* Navigation popup */
-        .nav-popup {
-            position: absolute;
-            left: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            display: flex;
-            align-items: center;
-            opacity: 0;
-            pointer-events: none;
-            transition: all 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
-            z-index: 25;
-        }
-
-        .nav-dot:hover + .nav-popup {
-            opacity: 1;
-            pointer-events: all;
-            left: 10px;
-        }
-
-        .nav-popup:hover {
-            opacity: 1;
-            pointer-events: all;
-            left: 10px;
-        }
-
-        .connector {
-            width: 0;
-            height: 2px;
-            background: linear-gradient(90deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.2));
-            transition: width 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
-            margin-top: -1px;
-        }
-
-        .nav-dot:hover + .nav-popup .connector,
-        .nav-popup:hover .connector {
-            width: 100px;
-        }
-
-        .nav-label {
-            background: rgba(30, 35, 45, 0.95);
-            padding: 12px 24px;
-            border-radius: 8px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-            white-space: nowrap;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            transition: all 0.3s ease;
-        }
-
-        .nav-label a {
-            color: #ffffff;
-            text-decoration: none;
-            font-size: 0.85rem;
-            font-weight: 500;
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-        }
-
-        .nav-label:hover {
-            background: rgba(40, 45, 55, 1);
-            transform: translateX(5px) scale(1.05);
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-
-        /* Social Media Icons */
         .social-icons {
-            position: absolute;
-            bottom: -80px;
-            left: 50%;
-            transform: translateX(-50%);
+            margin-top: 60px;
             display: flex;
             gap: 15px;
-            z-index: 20;
+            justify-content: center;
         }
 
         .social-icon {
@@ -236,48 +158,27 @@
             fill: white;
         }
 
-        .social-icon.github:hover {
-            border-color: white;
-        }
-
-        .social-icon.facebook:hover {
-            border-color: #1877f2;
-        }
-
-        .social-icon.twitter:hover {
-            border-color: #1da1f2;
-        }
-
-        .social-icon.instagram:hover {
-            border-color: #e1306c;
-        }
-
-        .social-icon.pinterest:hover {
-            border-color: #e60023;
-        }
+        .social-icon.github:hover { border-color: white; }
+        .social-icon.facebook:hover { border-color: #1877f2; }
+        .social-icon.twitter:hover { border-color: #1da1f2; }
+        .social-icon.instagram:hover { border-color: #e1306c; }
+        .social-icon.pinterest:hover { border-color: #e60023; }
 
         /* About Section */
         .about-section {
-            width: 100%;
-            min-height: 100vh;
-            background: linear-gradient(135deg, #0f1117 0%, #1a1d2e 100%);
+            background: linear-gradient(135deg, rgba(15,17,23,0.98) 0%, rgba(26,29,46,0.98) 100%);
             padding: 100px 80px;
-            position: relative;
-            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .about-content {
             max-width: 1200px;
-            margin: 0 auto;
-            position: relative;
-            z-index: 10;
+            width: 100%;
         }
 
-        .about-header {
-            margin-bottom: 80px;
-        }
-
-        .about-title {
+        .section-title {
             font-size: 5rem;
             font-weight: 100;
             color: white;
@@ -290,18 +191,18 @@
             background-clip: text;
         }
 
-        .about-subtitle {
+        .section-subtitle {
             font-size: 1.5rem;
             color: rgba(255, 255, 255, 0.6);
             font-weight: 300;
             letter-spacing: 3px;
+            margin-bottom: 60px;
         }
 
         .about-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 60px;
-            margin-top: 60px;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 40px;
         }
 
         .about-card {
@@ -309,22 +210,8 @@
             backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 20px;
-            padding: 50px;
-            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .about-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%);
-            opacity: 0;
-            transition: opacity 0.5s ease;
+            padding: 40px;
+            transition: all 0.3s ease;
         }
 
         .about-card:hover {
@@ -333,14 +220,9 @@
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
         }
 
-        .about-card:hover::before {
-            opacity: 1;
-        }
-
         .card-icon {
             font-size: 3rem;
-            margin-bottom: 30px;
-            display: inline-block;
+            margin-bottom: 20px;
         }
 
         .card-title {
@@ -348,206 +230,269 @@
             color: white;
             font-weight: 300;
             letter-spacing: 3px;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             text-transform: uppercase;
         }
 
         .card-description {
-            font-size: 1.1rem;
+            font-size: 1rem;
             color: rgba(255, 255, 255, 0.7);
-            line-height: 1.8;
+            line-height: 1.6;
             font-weight: 300;
         }
 
-        .about-bg-element {
-            position: absolute;
-            width: 500px;
-            height: 500px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%);
-            pointer-events: none;
+        /* Portfolio Section */
+        .portfolio-section {
+            background: linear-gradient(135deg, rgba(26,29,46,0.98) 0%, rgba(42,29,62,0.98) 100%);
+            padding: 100px 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        .bg-element-1 {
-            top: -200px;
-            right: -200px;
+        .portfolio-content {
+            max-width: 1200px;
+            width: 100%;
+            text-align: center;
         }
 
-        .bg-element-2 {
-            bottom: -200px;
-            left: -200px;
+        /* Services Section */
+        .services-section {
+            background: linear-gradient(135deg, rgba(42,29,62,0.98) 0%, rgba(29,42,62,0.98) 100%);
+            padding: 100px 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .services-content {
+            max-width: 1200px;
+            width: 100%;
+            text-align: center;
+        }
+
+        /* Contact Section */
+        .contact-section {
+            background: linear-gradient(135deg, rgba(29,42,62,0.98) 0%, rgba(15,17,23,0.98) 100%);
+            padding: 100px 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .contact-content {
+            max-width: 800px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .contact-text {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.8;
+            margin-bottom: 40px;
+        }
+
+        .contact-email {
+            font-size: 1.5rem;
+            color: white;
+            text-decoration: none;
+            padding: 20px 50px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50px;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+
+        .contact-email:hover {
+            background: white;
+            color: #0f1117;
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(255, 255, 255, 0.2);
         }
 
         @media (max-width: 768px) {
-            .interaction-area {
-                width: 240px;
-                height: 240px;
+            .name-box {
+                padding: 30px 50px;
+                min-width: auto;
+            }
+
+            .name-text {
+                font-size: 2rem;
+                letter-spacing: 15px;
             }
 
             .about-grid {
                 grid-template-columns: 1fr;
-                gap: 30px;
             }
 
-            .about-title {
+            .section-title {
                 font-size: 3rem;
                 letter-spacing: 10px;
             }
 
-            .about-section {
+            .about-section, .portfolio-section, .services-section, .contact-section {
                 padding: 60px 30px;
             }
         }
     </style>
 </head>
 <body>
-    <div id="smooth-scroll" data-scroll-container>
-        <div class="container" data-scroll-section>
-        <!-- Navigation Dots on Far Left -->
-        <div class="nav-dots-container">
-            <div class="nav-item">
-                <div class="nav-dot dot-1"></div>
-                <div class="nav-popup">
-                    <div class="connector"></div>
-                    <div class="nav-label">
-                        <a href="#about" class="nav-link">About</a>
+    <nav class="nav-dots-container">
+        <div class="nav-dot" data-target="0"></div>
+        <div class="nav-dot" data-target="1"></div>
+        <div class="nav-dot" data-target="2"></div>
+        <div class="nav-dot" data-target="3"></div>
+        <div class="nav-dot" data-target="4"></div>
+    </nav>
+
+    <main>
+        <!-- Home Section -->
+        <section>
+            <div class="section-content home-section">
+                <div class="center-content">
+                    <div class="name-box">
+                        <div class="name-text" id="typewriter"></div>
                     </div>
-                </div>
-            </div>
-
-            <div class="nav-item">
-                <div class="nav-dot dot-2"></div>
-                <div class="nav-popup">
-                    <div class="connector"></div>
-                    <div class="nav-label">
-                        <a href="#" class="nav-link" data-page="2">Portfolio</a>
-                    </div>
-                </div>
-            </div>
-
-            <div class="nav-item">
-                <div class="nav-dot dot-3"></div>
-                <div class="nav-popup">
-                    <div class="connector"></div>
-                    <div class="nav-label">
-                        <a href="#" class="nav-link" data-page="3">Services</a>
-                    </div>
-                </div>
-            </div>
-
-            <div class="nav-item">
-                <div class="nav-dot dot-4"></div>
-                <div class="nav-popup">
-                    <div class="connector"></div>
-                    <div class="nav-label">
-                        <a href="#" class="nav-link" data-page="4">Contact</a>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Center Interactive Area -->
-        <div class="center-content">
-            <div class="interaction-area">
-                <!-- Name Box -->
-                <div class="name-box">
-                    <div class="name-text" id="typewriter"></div>
-                </div>
-
-                <!-- Social Media Icons -->
-                <div class="social-icons">
-                    <a href="#" class="social-icon github" target="_blank">
-                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
-                        </svg>
-                    </a>
-                    <a href="#" class="social-icon facebook" target="_blank">
-                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                        </svg>
-                    </a>
-                    <a href="#" class="social-icon twitter" target="_blank">
-                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-                        </svg>
-                    </a>
-                    <a href="#" class="social-icon instagram" target="_blank">
-                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M12 0C8.74 0 8.333.015 7.053.072 5.775.132 4.905.333 4.14.63c-.789.306-1.459.717-2.126 1.384S.935 3.35.63 4.14C.333 4.905.131 5.775.072 7.053.012 8.333 0 8.74 0 12s.015 3.667.072 4.947c.06 1.277.261 2.148.558 2.913.306.788.717 1.459 1.384 2.126.667.666 1.336 1.079 2.126 1.384.766.296 1.636.499 2.913.558C8.333 23.988 8.74 24 12 24s3.667-.015 4.947-.072c1.277-.06 2.148-.262 2.913-.558.788-.306 1.459-.718 2.126-1.384.666-.667 1.079-1.335 1.384-2.126.296-.765.499-1.636.558-2.913.06-1.28.072-1.687.072-4.947s-.015-3.667-.072-4.947c-.06-1.277-.262-2.149-.558-2.913-.306-.789-.718-1.459-1.384-2.126C21.319 1.347 20.651.935 19.86.63c-.765-.297-1.636-.499-2.913-.558C15.667.012 15.26 0 12 0zm0 2.16c3.203 0 3.585.016 4.85.071 1.17.055 1.805.249 2.227.415.562.217.96.477 1.382.896.419.42.679.819.896 1.381.164.422.36 1.057.413 2.227.057 1.266.07 1.646.07 4.85s-.015 3.585-.074 4.85c-.061 1.17-.256 1.805-.421 2.227-.224.562-.479.96-.899 1.382-.419.419-.824.679-1.38.896-.42.164-1.065.36-2.235.413-1.274.057-1.649.07-4.859.07-3.211 0-3.586-.015-4.859-.074-1.171-.061-1.816-.256-2.236-.421-.569-.224-.96-.479-1.379-.899-.421-.419-.69-.824-.9-1.38-.165-.42-.359-1.065-.42-2.235-.045-1.26-.061-1.649-.061-4.844 0-3.196.016-3.586.061-4.861.061-1.17.255-1.814.42-2.234.21-.57.479-.96.9-1.381.419-.419.81-.689 1.379-.898.42-.166 1.051-.361 2.221-.421 1.275-.045 1.65-.06 4.859-.06l.045.03zm0 3.678c-3.405 0-6.162 2.76-6.162 6.162 0 3.405 2.76 6.162 6.162 6.162 3.405 0 6.162-2.76 6.162-6.162 0-3.405-2.76-6.162-6.162-6.162zM12 16c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm7.846-10.405c0 .795-.646 1.44-1.44 1.44-.795 0-1.44-.646-1.44-1.44 0-.794.646-1.439 1.44-1.439.793-.001 1.44.645 1.44 1.439z"/>
-                        </svg>
-                    </a>
-                    <a href="#" class="social-icon pinterest" target="_blank">
-                        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M12.017 0C5.396 0 .029 5.367.029 11.987c0 5.079 3.158 9.417 7.618 11.162-.105-.949-.199-2.403.041-3.439.219-.937 1.406-5.957 1.406-5.957s-.359-.72-.359-1.781c0-1.663.967-2.911 2.168-2.911 1.024 0 1.518.769 1.518 1.688 0 1.029-.653 2.567-.992 3.992-.285 1.193.6 2.165 1.775 2.165 2.128 0 3.768-2.245 3.768-5.487 0-2.861-2.063-4.869-5.008-4.869-3.41 0-5.409 2.562-5.409 5.199 0 1.033.394 2.143.889 2.741.099.12.112.225.085.345-.09.375-.293 1.199-.334 1.363-.053.225-.172.271-.401.165-1.495-.69-2.433-2.878-2.433-4.646 0-3.776 2.748-7.252 7.92-7.252 4.158 0 7.392 2.967 7.392 6.923 0 4.135-2.607 7.462-6.233 7.462-1.214 0-2.354-.629-2.758-1.379l-.749 2.848c-.269 1.045-1.004 2.352-1.498 3.146 1.123.345 2.306.535 3.55.535 6.607 0 11.985-5.365 11.985-11.987C23.97 5.39 18.592.026 11.985.026L12.017 0z"/>
-                        </svg>
-                    </a>
-                </div>
-            </div>
-        </div>
-        </div>
-
-        <!-- About Section -->
-        <section class="about-section" id="about" data-scroll-section>
-            <div class="about-bg-element bg-element-1"></div>
-            <div class="about-bg-element bg-element-2"></div>
-            
-            <div class="about-content">
-                <div class="about-header" data-scroll data-scroll-speed="1">
-                    <h2 class="about-title">ABOUT</h2>
-                    <p class="about-subtitle">Crafting Digital Experiences</p>
-                </div>
-
-                <div class="about-grid">
-                    <div class="about-card" data-scroll data-scroll-speed="2">
-                        <div class="card-icon">🎨</div>
-                        <h3 class="card-title">Design</h3>
-                        <p class="card-description">Creating beautiful, intuitive interfaces that bring ideas to life with modern aesthetics and seamless user experiences.</p>
-                    </div>
-
-                    <div class="about-card" data-scroll data-scroll-speed="2">
-                        <div class="card-icon">💻</div>
-                        <h3 class="card-title">Development</h3>
-                        <p class="card-description">Building robust, scalable applications with cutting-edge technologies and best practices in modern web development.</p>
-                    </div>
-
-                    <div class="about-card" data-scroll data-scroll-speed="2">
-                        <div class="card-icon">🚀</div>
-                        <h3 class="card-title">Innovation</h3>
-                        <p class="card-description">Pushing boundaries with creative solutions and staying ahead of the curve in the ever-evolving digital landscape.</p>
-                    </div>
-
-                    <div class="about-card" data-scroll data-scroll-speed="2">
-                        <div class="card-icon">✨</div>
-                        <h3 class="card-title">Excellence</h3>
-                        <p class="card-description">Delivering exceptional quality in every project with attention to detail and commitment to perfection.</p>
+                    
+                    <div class="social-icons">
+                        <a href="https://github.com/pluhchyut" class="social-icon github" target="_blank">
+                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                            </svg>
+                        </a>
+                        <a href="#" class="social-icon facebook" target="_blank">
+                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                            </svg>
+                        </a>
+                        <a href="#" class="social-icon twitter" target="_blank">
+                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                            </svg>
+                        </a>
+                        <a href="https://www.instagram.com/pluhchyut/" class="social-icon instagram" target="_blank">
+                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 0C8.74 0 8.333.015 7.053.072 5.775.132 4.905.333 4.14.63c-.789.306-1.459.717-2.126 1.384S.935 3.35.63 4.14C.333 4.905.131 5.775.072 7.053.012 8.333 0 8.74 0 12s.015 3.667.072 4.947c.06 1.277.261 2.148.558 2.913.306.788.717 1.459 1.384 2.126.667.666 1.336 1.079 2.126 1.384.766.296 1.636.499 2.913.558C8.333 23.988 8.74 24 12 24s3.667-.015 4.947-.072c1.277-.06 2.148-.262 2.913-.558.788-.306 1.459-.718 2.126-1.384.666-.667 1.079-1.335 1.384-2.126.296-.765.499-1.636.558-2.913.06-1.28.072-1.687.072-4.947s-.015-3.667-.072-4.947c-.06-1.277-.262-2.149-.558-2.913-.306-.789-.718-1.459-1.384-2.126C21.319 1.347 20.651.935 19.86.63c-.765-.297-1.636-.499-2.913-.558C15.667.012 15.26 0 12 0zm0 2.16c3.203 0 3.585.016 4.85.071 1.17.055 1.805.249 2.227.415.562.217.96.477 1.382.896.419.42.679.819.896 1.381.164.422.36 1.057.413 2.227.057 1.266.07 1.646.07 4.85s-.015 3.585-.074 4.85c-.061 1.17-.256 1.805-.421 2.227-.224.562-.479.96-.899 1.382-.419.419-.824.679-1.38.896-.42.164-1.065.36-2.235.413-1.274.057-1.649.07-4.859.07-3.211 0-3.586-.015-4.859-.074-1.171-.061-1.816-.256-2.236-.421-.569-.224-.96-.479-1.379-.899-.421-.419-.69-.824-.9-1.38-.165-.42-.359-1.065-.42-2.235-.045-1.26-.061-1.649-.061-4.844 0-3.196.016-3.586.061-4.861.061-1.17.255-1.814.42-2.234.21-.57.479-.96.9-1.381.419-.419.81-.689 1.379-.898.42-.166 1.051-.361 2.221-.421 1.275-.045 1.65-.06 4.859-.06l.045.03zm0 3.678c-3.405 0-6.162 2.76-6.162 6.162 0 3.405 2.76 6.162 6.162 6.162 3.405 0 6.162-2.76 6.162-6.162 0-3.405-2.76-6.162-6.162-6.162zM12 16c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm7.846-10.405c0 .795-.646 1.44-1.44 1.44-.795 0-1.44-.646-1.44-1.44 0-.794.646-1.439 1.44-1.439.793-.001 1.44.645 1.44 1.439z"/>
+                            </svg>
+                        </a>
+                        <a href="https://www.pinterest.com/achyutvkumar/" class="social-icon pinterest" target="_blank">
+                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12.017 0C5.396 0 .029 5.367.029 11.987c0 5.079 3.158 9.417 7.618 11.162-.105-.949-.199-2.403.041-3.439.219-.937 1.406-5.957 1.406-5.957s-.359-.72-.359-1.781c0-1.663.967-2.911 2.168-2.911 1.024 0 1.518.769 1.518 1.688 0 1.029-.653 2.567-.992 3.992-.285 1.193.6 2.165 1.775 2.165 2.128 0 3.768-2.245 3.768-5.487 0-2.861-2.063-4.869-5.008-4.869-3.41 0-5.409 2.562-5.409 5.199 0 1.033.394 2.143.889 2.741.099.12.112.225.085.345-.09.375-.293 1.199-.334 1.363-.053.225-.172.271-.401.165-1.495-.69-2.433-2.878-2.433-4.646 0-3.776 2.748-7.252 7.92-7.252 4.158 0 7.392 2.967 7.392 6.923 0 4.135-2.607 7.462-6.233 7.462-1.214 0-2.354-.629-2.758-1.379l-.749 2.848c-.269 1.045-1.004 2.352-1.498 3.146 1.123.345 2.306.535 3.55.535 6.607 0 11.985-5.365 11.985-11.987C23.97 5.39 18.592.026 11.985.026L12.017 0z"/>
+                            </svg>
+                        </a>
                     </div>
                 </div>
             </div>
         </section>
-    </div>
+
+        <!-- About Section -->
+        <section>
+            <div class="section-content about-section">
+                <div class="about-content">
+                    <h2 class="section-title">ABOUT</h2>
+                    <p class="section-subtitle">Crafting Digital Experiences</p>
+                    
+                    <div class="about-grid">
+                        <div class="about-card">
+                            <div class="card-icon">🎨</div>
+                            <h3 class="card-title">Design</h3>
+                            <p class="card-description">Creating beautiful, intuitive interfaces that bring ideas to life with modern aesthetics.</p>
+                        </div>
+
+                        <div class="about-card">
+                            <div class="card-icon">💻</div>
+                            <h3 class="card-title">Development</h3>
+                            <p class="card-description">Building robust, scalable applications with cutting-edge technologies.</p>
+                        </div>
+
+                        <div class="about-card">
+                            <div class="card-icon">🚀</div>
+                            <h3 class="card-title">Innovation</h3>
+                            <p class="card-description">Pushing boundaries with creative solutions in the digital landscape.</p>
+                        </div>
+
+                        <div class="about-card">
+                            <div class="card-icon">✨</div>
+                            <h3 class="card-title">Excellence</h3>
+                            <p class="card-description">Delivering exceptional quality with attention to detail.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Portfolio Section -->
+        <section>
+            <div class="section-content portfolio-section">
+                <div class="portfolio-content">
+                    <h2 class="section-title">PORTFOLIO</h2>
+                    <p class="section-subtitle">Selected Works</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Services Section -->
+        <section>
+            <div class="section-content services-section">
+                <div class="services-content">
+                    <h2 class="section-title">SERVICES</h2>
+                    <p class="section-subtitle">What I Offer</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Contact Section -->
+        <section>
+            <div class="section-content contact-section">
+                <div class="contact-content">
+                    <h2 class="section-title">CONTACT</h2>
+                    <p class="contact-text">Let's work together to create something amazing. Get in touch and let's start a conversation.</p>
+                    <a href="mailto:hello@achyut.com" class="contact-email">hello@achyut.com</a>
+                </div>
+            </div>
+        </section>
+    </main>
 
     <script>
+        // Fade out home content on scroll
+        let lastScroll = 0;
+        window.addEventListener('scroll', () => {
+            const scrolled = window.pageYOffset;
+            const homeSection = document.querySelector('.home-section .center-content');
+            const maxScroll = window.innerHeight;
+            
+            // Calculate opacity based on scroll (fades out in first 100vh)
+            const opacity = Math.max(0, 1 - (scrolled / maxScroll) * 2);
+            homeSection.style.opacity = opacity;
+        });
+
+        // Navigation dots click handler
+        $('.nav-dot').on('click', function() {
+            var target = $(this).data('target');
+            $('section').eq(target)[0].scrollIntoView({ 
+                behavior: 'smooth',
+                block: 'start'
+            });
+        });
+
+        // TypeIt animation
         new TypeIt("#typewriter", { 
             lifeLike: true, 
-            speed: 1 
+            speed: 0 
         })
         .delete(7, {instant: true})
         .type("a")
-        .pause(273)
+        .pause(473)
         .type("c")
-        .pause(126)
+        .pause(326)
         .type("h")
-        .pause(173)
+        .pause(299)
         .type("y")
-        .pause(606)
+        .pause(706)
         .type("u")
-        .pause(171)
+        .pause(371)
         .type("t")
-        .move(-5, {speed: 410})
-        .pause(377)
-        .delete(4, {instant: true})
-        .pause(223)
-        .type("A")
         .go();
     </script>
 </body>
