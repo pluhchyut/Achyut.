@@ -153,22 +153,37 @@
     <div class="project-description" id="project-description"></div>
     <button class="back-button" id="back-button">← RETURN TO VOID</button>
   </div>
+
+  <div id="intro-overlay" class="project-overlay" style="background: rgba(0,0,0,0.85); color: white;">
+    <div class="project-title">REFLECTIVE VOID</div>
+    <div class="project-description">click to shatter into the void</div>
+    <button class="back-button" id="intro-button">ENTER THE VOID</button>
+  </div>
   
   <div id="fade-overlay" class="fade-overlay"></div>
   
   <div class="footer">ACHYUT V KUMAR • PORTFOLIO 2025</div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Reflector for mirror floor (falls back to physical material if unavailable) -->
+  <script src="https://threejs.org/examples/js/objects/Reflector.js"></script>
+  <script src="https://threejs.org/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://threejs.org/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://threejs.org/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://threejs.org/examples/js/shaders/CopyShader.js"></script>
   
   <script>
     // Scene setup
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xffffff);
-    scene.fog = new THREE.FogExp2(0xffffff, 0.015);
+  // darker background and smoother exponential fog for a less-harsh horizon
+  scene.background = new THREE.Color(0x101018);
+  // Use FogExp2 for a smoother, physically-plausible falloff
+  scene.fog = new THREE.FogExp2(0x0b0b0b, 0.015);
     
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 5, 25);
-    camera.lookAt(0, 0, 0);
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  // lower the camera and tilt slightly upward so the floor reflection and horizon read better
+  camera.position.set(0, 2, 20);
+  camera.lookAt(0, 0, 0);
     
     const renderer = new THREE.WebGLRenderer({ 
       canvas: document.getElementById('canvas'),
@@ -177,8 +192,10 @@
     });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.2;
+  // set clear color to a dark gray-blue to balance the mist and scene
+  renderer.setClearColor(0x101018);
     
     // Projects data
     const projects = [
@@ -196,36 +213,123 @@
     let debrisShards = [];
     
     // Lighting - Cool blue-white key light
-    const ambientLight = new THREE.AmbientLight(0x1a1a2e, 0.2);
-    scene.add(ambientLight);
+  // ambient fill (subtle, desaturated deep blue)
+  const ambientLight = new THREE.AmbientLight(0x1a2a3f, 0.06);
+  scene.add(ambientLight);
+
+  // strong directional key light to give shards crisp specular highlights
+  // make it a deep blue accent (cinematic) and keep intensity high to catch reflections
+  const KEY_COLOR = 0x1133cc;
+  const keyLight = new THREE.DirectionalLight(KEY_COLOR, 1.5);
+  keyLight.position.set(2, 5, 3);
+  scene.add(keyLight);
+
+  // subtle rim to separate shards from background (deep blue, lower intensity)
+  const rimLight = new THREE.PointLight(0x3355ff, 0.45, 30);
+  rimLight.position.set(-8, 8, -8);
+  scene.add(rimLight);
+
+  // faint cool fill close to the scene for soft specular/tonal balance
+  // follow requested values: intensity ~0.4, distance ~10 for controlled falloff
+  const fillLight = new THREE.PointLight(0x3355ff, 0.4, 10);
+  fillLight.position.set(0, 1, 0);
+  scene.add(fillLight);
+
+  // soft proximity pulse light to subtly 'charge' the fog near shards
+  // Use the same deep-blue hue but keep intensity low and distance modest
+  const fogPulseLight = new THREE.PointLight(0x3355ff, 0.0, 18, 2);
+  fogPulseLight.intensity = 0.0;
+  fogPulseLight.distance = 18;
+  fogPulseLight.decay = 2.0;
+  scene.add(fogPulseLight);
     
-    const keyLight = new THREE.PointLight(0xaaddff, 2.5, 100);
-    keyLight.position.set(8, 12, 8);
-    scene.add(keyLight);
-    
-    const rimLight = new THREE.PointLight(0x4488ff, 1.2, 50);
-    rimLight.position.set(-8, 8, -8);
-    scene.add(rimLight);
-    
-    const fillLight = new THREE.PointLight(0x88aaff, 0.8, 40);
-    fillLight.position.set(0, 5, -10);
-    scene.add(fillLight);
-    
-    // Obsidian floor
+    // Obsidian mirror floor: prefer Reflector (real reflection). Fall back to a
+    // high-metalness MeshPhysicalMaterial if Reflector isn't available.
     const floorGeometry = new THREE.PlaneGeometry(200, 200);
-    const floorMaterial = new THREE.MeshPhysicalMaterial({
-      metalness: 0.9,
-      roughness: 0.6,
-      color: 0x050505,
-      clearcoat: 1,
-      clearcoatRoughness: 0.3,
-      reflectivity: 0.7,
-      envMapIntensity: 0.5
+    let floor;
+    if (THREE.Reflector) {
+      floor = new THREE.Reflector(floorGeometry, {
+        clipBias: 0.003,
+        textureWidth: Math.floor(window.innerWidth * renderer.getPixelRatio()),
+        textureHeight: Math.floor(window.innerHeight * renderer.getPixelRatio()),
+        color: 0x060606
+      });
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = -5;
+      scene.add(floor);
+    } else {
+      // fallback - still quite reflective
+      const floorMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0x060606,
+        metalness: 0.95,
+        roughness: 0.18,
+        clearcoat: 1,
+        clearcoatRoughness: 0.05,
+        reflectivity: 1,
+        envMapIntensity: 0.8
+      });
+      floor = new THREE.Mesh(floorGeometry, floorMaterial);
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = -5;
+      scene.add(floor);
+    }
+
+    // Ripple overlay plane sits just above the floor and uses a small shader to
+    // perturb color/alpha to give the illusion of slow-moving ripples on the
+    // obsidian mirror surface. This avoids modifying the Reflector internals.
+    const rippleUniforms = {
+      uTime: { value: 0 },
+      uColor: { value: new THREE.Color(0x000000) },
+      uAmplitude: { value: 0.08 },
+      uScale: { value: 3.5 },
+      uOpacity: { value: 0.12 }
+    };
+
+    const rippleMaterial = new THREE.ShaderMaterial({
+      uniforms: rippleUniforms,
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float uTime;
+        uniform float uAmplitude;
+        uniform float uScale;
+        uniform float uOpacity;
+        uniform vec3 uColor;
+        varying vec2 vUv;
+
+        // Simple layered sin-based ripples (cheap pseudo-noise)
+        float ripple(vec2 p) {
+          float t = uTime * 0.12;
+          float r = 0.0;
+          r += sin((p.x + p.y * 0.7) * uScale + t) * 0.5;
+          r += sin((p.x * 0.6 - p.y * 1.2) * (uScale * 0.6) - t * 0.7) * 0.35;
+          r += sin((p.x * 1.7 + p.y * 0.4) * (uScale * 0.4) + t * 1.3) * 0.25;
+          return r * 0.5;
+        }
+
+        void main() {
+          vec2 p = vUv * 2.0 - 1.0;
+          float r = ripple(p);
+          float shade = smoothstep(-0.2, 0.6, r * uAmplitude);
+          vec3 base = vec3(0.02, 0.02, 0.035);
+          vec3 col = mix(base, uColor * 0.25, shade);
+          gl_FragColor = vec4(col, uOpacity * (0.5 + shade * 0.5));
+        }
+      `,
+      transparent: true,
+      depthWrite: false
     });
-    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -5;
-    scene.add(floor);
+
+    const ripplePlane = new THREE.Mesh(new THREE.PlaneGeometry(200, 200, 1, 1), rippleMaterial);
+    ripplePlane.rotation.x = -Math.PI / 2;
+    ripplePlane.position.y = -4.99; // slightly above the floor to prevent z-fighting
+    ripplePlane.renderOrder = 2;
+    scene.add(ripplePlane);
     
     // Mist particles
     const particleCount = 800;
@@ -302,29 +406,33 @@
       const geometry = createShardGeometry();
       
       const material = new THREE.MeshPhysicalMaterial({
-        metalness: 1,
-        roughness: 0.05,
-        transmission: 0.1,
-        thickness: 0.8, // Increased depth for shards
+        metalness: 1.0,
+        roughness: 0.03,
+        transmission: 0.0,
+        // thickness removed for opaque reflective shards
         reflectivity: 1,
-        clearcoat: 1,
-        clearcoatRoughness: 0.05,
-        color: 0xcccccc,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.1,
+        color: 0x010101, // near-black base so reflections pop
         emissive: 0x000000,
         emissiveIntensity: 0,
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.95,
         side: THREE.DoubleSide,
-        envMapIntensity: 1.5
+        envMapIntensity: 2.2
       });
       
       const shard = new THREE.Mesh(geometry, material);
       
       const angle = (i / 5) * Math.PI * 2;
       const radius = 12;
-      shard.position.x = Math.cos(angle) * radius;
-      shard.position.y = (Math.random() - 0.5) * 4;
-      shard.position.z = Math.sin(angle) * radius;
+  // compute and store the final (target) position, then start shard at center for the intro
+  const finalX = Math.cos(angle) * radius;
+  const finalY = (Math.random() - 0.5) * 4;
+  const finalZ = Math.sin(angle) * radius;
+  shard.userData.targetPosition = new THREE.Vector3(finalX, finalY, finalZ);
+  // start at center (will animate out on intro)
+  shard.position.set(0, 0, 0);
       
       shard.rotation.x = Math.random() * Math.PI * 2;
       shard.rotation.y = Math.random() * Math.PI * 2;
@@ -341,9 +449,15 @@
         rotationSpeedY: (Math.random() - 0.5) * 0.0007,
         rotationSpeedZ: (Math.random() - 0.5) * 0.0005,
         originalY: shard.position.y,
+        // intro shatter control
+        shatterStart: 0,
+        shatterDuration: 800 + Math.round(Math.random() * 300),
+        shattering: false,
         hovered: false
       };
       
+      // start them very small so the shatter anim grows them
+      shard.scale.setScalar(0.001);
       scene.add(shard);
       shardMeshes.push(shard);
       shards.push({
@@ -355,29 +469,33 @@
     // Create debris shards (smaller pieces for depth)
     for (let i = 0; i < 25; i++) {
       const geometry = createShardGeometry();
-      const material = new THREE.MeshPhysicalMaterial({
-        metalness: 1,
-        roughness: 0.08,
-        transmission: 0.15,
-        thickness: 0.5, // Increased depth
-        reflectivity: 1,
-        clearcoat: 0.8,
-        clearcoatRoughness: 0.1,
-        color: 0xaaaaaa,
-        transparent: true,
-        opacity: 0.5,
-        side: THREE.DoubleSide,
-        envMapIntensity: 1.2
-      });
+    const material = new THREE.MeshPhysicalMaterial({
+      metalness: 1.0,
+      // slightly smoother debris so it still reads reflections in low light
+      roughness: 0.04,
+      transmission: 0.0,
+      reflectivity: 1,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.12,
+      color: 0x020202,
+      emissive: 0x000000,
+      emissiveIntensity: 0,
+      transparent: true,
+      opacity: 0.92,
+      side: THREE.DoubleSide,
+      envMapIntensity: 1.95
+    });
       
       const debris = new THREE.Mesh(geometry, material);
-      debris.scale.setScalar(0.25 + Math.random() * 0.35);
-      
-      const angle = (i / 25) * Math.PI * 2;
-      const radius = 6 + Math.random() * 10;
-      debris.position.x = Math.cos(angle) * radius;
-      debris.position.y = Math.max(-4, (Math.random() - 0.5) * 12); // Prevent spawning below floor
-      debris.position.z = Math.sin(angle) * radius;
+        // compute final target then start at origin small
+  debris.scale.setScalar(0.001);
+  const angle = (i / 25) * Math.PI * 2;
+  const radius = 6 + Math.random() * 10;
+  const finalX = Math.cos(angle) * radius;
+  const finalY = Math.max(-4, (Math.random() - 0.5) * 12); // Prevent spawning below floor
+  const finalZ = Math.sin(angle) * radius;
+  debris.userData.targetPosition = new THREE.Vector3(finalX, finalY, finalZ);
+  debris.position.set(0, 0, 0);
       
       debris.rotation.x = Math.random() * Math.PI * 2;
       debris.rotation.y = Math.random() * Math.PI * 2;
@@ -392,11 +510,112 @@
         rotationSpeedX: (Math.random() - 0.5) * 0.002,
         rotationSpeedY: (Math.random() - 0.5) * 0.002,
         rotationSpeedZ: (Math.random() - 0.5) * 0.0015,
-        originalY: debris.position.y
+        originalY: debris.position.y,
+        shatterStart: 0,
+        shatterDuration: 600 + Math.round(Math.random() * 300),
+        shattering: false
       };
       
       scene.add(debris);
       debrisShards.push(debris);
+    }
+
+      // Remove any drag-line groups (we no longer show lines while dragging)
+      for (let i = 0; i < 5; i++) {
+        const lineKey = `drag-line-${i}`;
+        const dragGroup = scene.getObjectByName(lineKey);
+        if (dragGroup) {
+          const disposeRec = (obj) => {
+            if (obj.children) obj.children.forEach(c => disposeRec(c));
+            if (obj.geometry) obj.geometry.dispose();
+            if (obj.material) {
+              if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+              else obj.material.dispose();
+            }
+          };
+          disposeRec(dragGroup);
+          scene.remove(dragGroup);
+        }
+      }
+
+      // Autoglide pieces that were dragged away: smoothly lerp them back to original position
+      const nowAuto2 = Date.now();
+      const easeOutCubic = (t) => (--t) * t * t + 1;
+      shardMeshes.forEach(shard => {
+        const d = shard.userData;
+        if (d && d.autoglide) {
+          const t0 = d.autoglideStart || nowAuto2;
+          const dur = d.autoglideDuration || 600;
+          const prog = Math.min(1, (nowAuto2 - t0) / dur);
+          const eased = easeOutCubic(prog);
+          if (d.autoglideFrom && d.autoglideTo) {
+            shard.position.lerpVectors(d.autoglideFrom, d.autoglideTo, eased);
+          }
+          shard.scale.setScalar(THREE.MathUtils.lerp(0.001, d._finalScale || 1, eased));
+          if (prog >= 1) {
+            d.autoglide = false;
+            d.wasDragged = false;
+            if (d.originalPosition) shard.position.copy(d.originalPosition);
+          }
+        }
+      });
+
+      debrisShards.forEach(debris => {
+        const d = debris.userData;
+        if (d && d.autoglide) {
+          const t0 = d.autoglideStart || nowAuto2;
+          const dur = d.autoglideDuration || 600;
+          const prog = Math.min(1, (nowAuto2 - t0) / dur);
+          const eased = easeOutCubic(prog);
+          if (d.autoglideFrom && d.autoglideTo) {
+            debris.position.lerpVectors(d.autoglideFrom, d.autoglideTo, eased);
+          }
+          debris.scale.setScalar(THREE.MathUtils.lerp(0.001, d._finalScale || 0.25, eased));
+          if (prog >= 1) {
+            d.autoglide = false;
+            d.wasDragged = false;
+            if (d.originalPosition) debris.position.copy(d.originalPosition);
+          }
+        }
+      });
+
+    // Helper: create an anchored cylinder that grows from startVec toward endVec.
+    // Implementation uses a parent Object3D placed at `startVec` and a unit-height cylinder
+    // whose geometry is translated so its base is at y=0. Scaling the child in Y grows the cylinder
+    // outward from the start point. Returns the parent Object3D (parent.children[0] is the mesh).
+    function createConnectorCylinder(startVec, endVec, radius, material) {
+      const dir = new THREE.Vector3().subVectors(endVec, startVec);
+      const length = Math.max(dir.length(), 0.0001);
+
+      // create a unit cylinder (height = 1) and translate so base is at y=0
+      const geometry = new THREE.CylinderGeometry(radius, radius, 1, 8, 1, true);
+      geometry.translate(0, 0.5, 0); // move geometry so base is at origin
+
+      const mesh = new THREE.Mesh(geometry, material);
+
+      // parent to allow anchoring at the start position and orientation
+      const parent = new THREE.Object3D();
+      parent.position.copy(startVec);
+
+      // orient parent so its local +Y points toward the direction
+      const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+      parent.quaternion.copy(quat);
+
+      // set initial scale to almost zero (so it can grow)
+      mesh.scale.set(1, 0.001, 1);
+
+      parent.add(mesh);
+
+      // store metadata for animated growth
+      parent.userData = {
+        start: startVec.clone(),
+        end: endVec.clone(),
+        targetLength: length,
+        growStartTime: Date.now(),
+        growDuration: 400 // ms
+      };
+
+      return parent;
     }
     
     // Project world creators
@@ -618,23 +837,23 @@
         switch(projectId) {
           case 0:
             projectObjects = createNeuralAIWorld();
-            scene.fog.color.setHex(0x001a1a);
+            scene.fog.color.setHex(0x081025);
             break;
           case 1:
             projectObjects = createWebDashboardWorld();
-            scene.fog.color.setHex(0x1a001a);
+            scene.fog.color.setHex(0x081025);
             break;
           case 2:
             projectObjects = createGameEngineWorld();
-            scene.fog.color.setHex(0x1a1a00);
+            scene.fog.color.setHex(0x081025);
             break;
           case 3:
             projectObjects = createDataVizWorld();
-            scene.fog.color.setHex(0x001a00);
+            scene.fog.color.setHex(0x081025);
             break;
           case 4:
             projectObjects = createBlockchainWorld();
-            scene.fog.color.setHex(0x1a0a00);
+            scene.fog.color.setHex(0x081025);
             break;
         }
         
@@ -648,6 +867,14 @@
         overlay.classList.add('visible');
         
         camera.position.z = 15;
+        // Keep the global fog color cinematic and deep-blue even inside project overlays.
+        // Project objects can use colored materials, but the ambient haze should remain
+        // the BASE_FOG_COLOR to avoid harsh color contamination.
+        if (typeof BASE_FOG_COLOR !== 'undefined') {
+          scene.fog.color.copy(BASE_FOG_COLOR);
+        } else {
+          scene.fog.color.setHex(0x0b0b0b);
+        }
         
         setTimeout(() => {
           fadeOverlay.classList.remove('active');
@@ -689,7 +916,9 @@
           debris.visible = true;
         });
         
-        scene.fog.color.setHex(0xffffff);
+  // restore base fog color for cinematic look
+  if (typeof BASE_FOG_COLOR !== 'undefined') scene.fog.color.copy(BASE_FOG_COLOR);
+  else scene.fog.color.setHex(0x0b0b0b);
         
         // Reset camera to initial spherical position
         cameraRotation.theta = 0;
@@ -720,6 +949,84 @@
     const label = document.getElementById('label');
     const labelName = document.getElementById('label-name');
     const labelDesc = document.getElementById('label-desc');
+    const introOverlay = document.getElementById('intro-overlay');
+    const introButton = document.getElementById('intro-button');
+    // show the intro overlay at startup
+    if (introOverlay) introOverlay.classList.add('visible');
+
+    let introComplete = false;
+
+  // Intro / explosion tuning
+  const INTRO_AUTO_START_MS = 1400; // auto-start intro after this ms (0 to disable)
+  const EXPLOSION_FORCE = 18.0; // base impulse magnitude
+  const GRAVITY = 18.0; // units/sec^2 downward
+  const DAMPING = 0.92; // per-frame damping (0..1)
+  const PARTICLE_COUNT = 140;
+  const PARTICLE_LIFETIME = 1200; // ms
+
+  let introParticles = null; // particle burst data
+
+// dynamic fog/pulse helpers
+const MAX_FOG_PULSE_DISTANCE = 28; // how far shards influence fog (increased)
+const BASE_FOG_COLOR = new THREE.Color(0x0b0b0b);
+const fogBlendColor = new THREE.Color(0x0066ff);
+
+
+    function startIntroShatter() {
+      if (introOverlay) introOverlay.classList.remove('visible');
+      const now = Date.now();
+      const shardStagger = 80;
+      const debrisStagger = 25;
+
+      // schedule shards
+      shardMeshes.forEach((sh, idx) => {
+        sh.userData.shatterStart = now + idx * shardStagger;
+        sh.userData.shattering = true;
+        // ensure they start at origin (we initialized them at origin)
+      });
+
+      // schedule debris to follow shards
+      debrisShards.forEach((d, idx) => {
+        d.userData.shatterStart = now + shardMeshes.length * shardStagger + idx * debrisStagger;
+        d.userData.shattering = true;
+      });
+
+      // create a short particle burst at origin
+      const particleGeom = new THREE.BufferGeometry();
+      const positions = new Float32Array(PARTICLE_COUNT * 3);
+      const alphas = new Float32Array(PARTICLE_COUNT);
+      const velocities = new Float32Array(PARTICLE_COUNT * 3);
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        positions[i * 3] = 0;
+        positions[i * 3 + 1] = 0;
+        positions[i * 3 + 2] = 0;
+        alphas[i] = 1.0;
+
+        // random outward velocity
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        const r = 6 + Math.random() * 6;
+        velocities[i * 3] = Math.sin(phi) * Math.cos(theta) * r;
+        velocities[i * 3 + 1] = Math.cos(phi) * r * 0.8 + 4;
+        velocities[i * 3 + 2] = Math.sin(phi) * Math.sin(theta) * r;
+      }
+      particleGeom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      particleGeom.setAttribute('alpha', new THREE.BufferAttribute(alphas, 1));
+      const particleMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.08, transparent: true, opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending });
+      const particlePoints = new THREE.Points(particleGeom, particleMat);
+      scene.add(particlePoints);
+      introParticles = { mesh: particlePoints, velocities: velocities, startTime: now, life: PARTICLE_LIFETIME };
+
+      // assign initial velocities to shards/debris at their start time (computed in animation)
+    }
+
+    if (introButton) {
+      introButton.addEventListener('click', () => startIntroShatter());
+    }
+    // Optionally auto-start the intro after a short timeout
+    if (INTRO_AUTO_START_MS && INTRO_AUTO_START_MS > 0) {
+      setTimeout(() => startIntroShatter(), INTRO_AUTO_START_MS);
+    }
     
     // Function to find nearest shard to a position
     function findNearestShard(position, shardArray) {
@@ -778,59 +1085,74 @@
         }
       }
       
-      // Create white dots at each waypoint (except the last one which is the shard)
+      // Create dots at each waypoint (except the last one which is the shard).
+      // Each dot is rendered as a black outline sphere behind a smaller white center sphere.
       waypoints.forEach((waypoint, index) => {
         if (index < waypoints.length - 1) { // Don't add dot to final shard
           const dotGeometry = new THREE.SphereGeometry(0.15, 8, 8);
-          const dotMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0xffffff,
-            transparent: true,
-            opacity: 0
-          });
-          const dot = new THREE.Mesh(dotGeometry, dotMaterial);
-          dot.position.copy(waypoint.position);
-          scene.add(dot);
-          
-          connectionLines.push({
-            isDot: true,
-            mesh: dot,
-            material: dotMaterial,
-            waypoint: waypoint,
-            waypointIndex: index,
-            fadingOut: false,
-            fadeStartTime: 0
-          });
+          // outline (slightly larger, black)
+          const outlineGeometry = new THREE.SphereGeometry(0.18, 8, 8);
+          const outlineMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.9 });
+          const centerMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1 });
+
+          const outlineDot = new THREE.Mesh(outlineGeometry, outlineMat);
+          const centerDot = new THREE.Mesh(dotGeometry, centerMat);
+
+          outlineDot.position.copy(waypoint.position);
+          centerDot.position.copy(waypoint.position);
+
+          scene.add(outlineDot);
+          scene.add(centerDot);
+
+          connectionLines.push({ isDot: true, mesh: outlineDot, material: outlineMat, waypoint: waypoint, waypointIndex: index, fadingOut: false, fadeStartTime: 0 });
+          connectionLines.push({ isDot: true, mesh: centerDot, material: centerMat, waypoint: waypoint, waypointIndex: index, fadingOut: false, fadeStartTime: 0 });
         }
       });
       
-      // Create white lines connecting all dots
+      // Create lines connecting all dots as a chained sequence of thin white cylinders.
+      // Instead of instantly spawning independent cylinders, we stagger their growStartTime
+      // so they animate out from the first waypoint like a single chain.
+      // Start the first segment immediately; subsequent segments begin when the previous finishes.
+      // Use a constant speed (units per second) so time = distance / speed.
+      const SPEED_UNITS_PER_SEC = 6.5; // higher => faster (tweak this value to taste)
+      const MIN_GROW_MS = 80; // clamp min duration per segment
+      const OVERLAP_FACTOR = 0.22; // fraction of duration to overlap (0..1). >0 for smoother seamless look
+
+      let cumulativeStart = Date.now();
       for (let i = 0; i < waypoints.length - 1; i++) {
         const startWaypoint = waypoints[i];
         const endWaypoint = waypoints[i + 1];
-        
-        const dotLineGeometry = new THREE.BufferGeometry().setFromPoints([
-          startWaypoint.position.clone(),
-          endWaypoint.position.clone()
-        ]);
-        const dotLineMaterial = new THREE.LineBasicMaterial({ 
-          color: 0xffffff,
-          transparent: true,
-          opacity: 0,
-          linewidth: 2
-        });
-        
-        const dotLine = new THREE.Line(dotLineGeometry, dotLineMaterial);
-        scene.add(dotLine);
-        
+
+        const startPos = startWaypoint.position.clone();
+        const endPos = endWaypoint.position.clone();
+
+        // outline as a thin white cylinder (no separate center line)
+        const outlineMatMesh = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 });
+        const outlineGroup = createConnectorCylinder(startPos, endPos, 0.03, outlineMatMesh); // thinner radius
+
+  // compute segment-specific grow duration using constant speed
+  const segLen = startPos.distanceTo(endPos);
+  const growDur = Math.max(MIN_GROW_MS, Math.round((segLen / SPEED_UNITS_PER_SEC) * 1000));
+
+  // schedule this segment to start after previous segments finish, but allow overlap for visual smoothness
+  outlineGroup.userData.growStartTime = cumulativeStart;
+  outlineGroup.userData.growDuration = growDur;
+  // next segment should start slightly before this one finishes to hide seams
+  cumulativeStart += Math.round(growDur * (1 - OVERLAP_FACTOR));
+
+        scene.add(outlineGroup);
+
         connectionLines.push({
           isDotLine: true,
-          line: dotLine,
-          geometry: dotLineGeometry,
-          material: dotLineMaterial,
+          mesh: outlineGroup,
+          geometry: outlineGroup.children[0].geometry,
+          material: outlineMatMesh,
           startWaypoint: startWaypoint,
           endWaypoint: endWaypoint,
           fadingOut: false,
-          fadeStartTime: 0
+          fadeStartTime: 0,
+          growStartTime: outlineGroup.userData.growStartTime,
+          growDuration: outlineGroup.userData.growDuration
         });
       }
       
@@ -857,63 +1179,18 @@
           originalPosition: targetShard.position.clone(),
           originalScale: targetShard.scale.clone(),
           fadingOut: false,
-          fadeStartTime: 0,
-          glitchActive: false,
-          glitchTimer: 0
+          fadeStartTime: 0
         });
       }
       
-      // Create one continuous line with all waypoints
-      const startPos = waypoints[0].position.clone();
-      
-      // Create black outline (thicker)
-      const outlinePoints = [startPos];
-      const outlineGeometry = new THREE.BufferGeometry().setFromPoints(outlinePoints);
-      const outlineMaterial = new THREE.LineBasicMaterial({ 
-        color: 0x000000,
-        transparent: true,
-        opacity: 0.9,
-        linewidth: 12
-      });
-      
-      const outlineLine = new THREE.Line(outlineGeometry, outlineMaterial);
-      scene.add(outlineLine);
-      
-      // Create white center line (thinner)
-      const centerPoints = [startPos];
-      const centerGeometry = new THREE.BufferGeometry().setFromPoints(centerPoints);
-      const centerMaterial = new THREE.LineBasicMaterial({ 
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.9,
-        linewidth: 6
-      });
-      
-      const centerLine = new THREE.Line(centerGeometry, centerMaterial);
-      scene.add(centerLine);
-      
-      const lineData = {
-        outlineLine: outlineLine,
-        centerLine: centerLine,
-        outlineGeometry: outlineGeometry,
-        centerGeometry: centerGeometry,
-        outlineMaterial: outlineMaterial,
-        centerMaterial: centerMaterial,
-        waypoints: waypoints,
-        progress: 0,
-        startTime: Date.now(),
-        fadingOut: false,
-        fadeStartTime: 0
-      };
-      
-      connectionLines.push(lineData);
-      lineAnimations.push(lineData);
+      // (Removed legacy continuous Line/centerLine approach — we're using staggered
+      // cylinder segments above to form a single visual chain.)
     }
     
     // Camera control variables
     let isDragging = false;
     let previousMousePosition = { x: 0, y: 0 };
-    let cameraRotation = { theta: 0, phi: Math.PI / 8 }; // theta: horizontal, phi: vertical
+  let cameraRotation = { theta: 0, phi: Math.PI / 10 }; // theta: horizontal, phi: vertical (tilt slightly upward)
     let cameraDistance = 25;
     const MIN_DISTANCE = 8;
     const MAX_DISTANCE = 50;
@@ -929,6 +1206,7 @@
     
     window.addEventListener('mousedown', (event) => {
       if (currentMode === 'void') {
+        if (!introComplete) return; // block interactions until intro finishes
         raycaster.setFromCamera(mouse, camera);
         
         // Check if clicking on a shard or debris
@@ -996,6 +1274,25 @@
     
     window.addEventListener('mouseup', () => {
       if (draggedObject) {
+        // mark as 'wasDragged' if it was moved significantly from its original position
+        const orig = draggedObject.userData.originalPosition;
+        if (orig) {
+          const movedDist = draggedObject.position.distanceTo(orig);
+          // threshold in world units — tune as desired
+          const wasDragged = movedDist > 0.6;
+          draggedObject.userData.wasDragged = wasDragged;
+
+          // if it was dragged away, start an autoglide to bring it back smoothly
+          if (wasDragged) {
+            const now = Date.now();
+            draggedObject.userData.autoglide = true;
+            draggedObject.userData.autoglideStart = now;
+            // duration scales with distance but clamped
+            draggedObject.userData.autoglideDuration = Math.min(1400, 400 + Math.round(movedDist * 250));
+            draggedObject.userData.autoglideFrom = draggedObject.position.clone();
+            draggedObject.userData.autoglideTo = orig.clone();
+          }
+        }
         draggedObject.userData.isDragging = false;
         draggedObject = null;
         dragConnections = [];
@@ -1018,6 +1315,7 @@
       mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
       
       if (currentMode === 'void') {
+        if (!introComplete) return; // block hover/drag interactions until intro completes
         // Handle object dragging
         if (draggedObject) {
           raycaster.setFromCamera(mouse, camera);
@@ -1025,15 +1323,7 @@
           raycaster.ray.intersectPlane(dragPlane, intersection);
           draggedObject.position.copy(intersection.add(dragOffset));
           
-          // Add subtle rotation while dragging
-          const dragSpeed = new THREE.Vector3().subVectors(
-            draggedObject.position,
-            draggedObject.userData.lastDragPosition || draggedObject.position
-          ).length();
-          
-          draggedObject.rotation.y += dragSpeed * 0.5;
-          draggedObject.rotation.x += dragSpeed * 0.3;
-          
+          // Track last drag position to compute motion if needed (no auto-rotation to avoid jitter)
           draggedObject.userData.lastDragPosition = draggedObject.position.clone();
         } else if (isDragging) {
           const deltaX = event.clientX - previousMousePosition.x;
@@ -1125,7 +1415,11 @@
     });
     
     window.addEventListener('click', () => {
-      if (currentMode === 'void' && hoveredShard && !isDragging) {
+      if (!introComplete) return; // block clicks until intro completes
+      if (currentMode === 'void' && hoveredDebris && !isDragging) {
+        // If user clicks debris, create the connection chain
+        createConnectionLines();
+      } else if (currentMode === 'void' && hoveredShard && !isDragging) {
         label.classList.remove('visible');
         const projectId = hoveredShard.userData.projectId;
         enterProjectWorld(projectId);
@@ -1144,105 +1438,389 @@
       time += 0.016;
       
       if (currentMode === 'void') {
+        // If intro shatter is running, animate shards with simple physics (velocity, gravity, damping)
+        let allShardsDone = true;
+        const nowGlobal = Date.now();
+        const dt = 0.016; // fixed step for stability
         shardMeshes.forEach(shard => {
           const data = shard.userData;
-          
-          if (!data.isDragging) {
-            data.orbitAngle += data.orbitSpeed;
-            shard.position.x = Math.cos(data.orbitAngle) * data.orbitRadius;
-            shard.position.z = Math.sin(data.orbitAngle) * data.orbitRadius;
-            shard.position.y = data.originalY + Math.sin(time * data.floatSpeed + data.floatOffset) * 1;
-          } else if (data.originalPosition) {
-            // Pull back to original position
-            const pullStrength = 0.01; // Slower snap back
-            shard.position.lerp(data.originalPosition, pullStrength);
+
+          if (data.shattering) {
+            const startT = data.shatterStart || 0;
+            if (nowGlobal < startT) {
+              allShardsDone = false;
+              return; // not started yet
+            }
+
+            // initialize velocity once at start
+            if (!data._velInitialized) {
+              const target = data.targetPosition || new THREE.Vector3(Math.cos(data.orbitAngle) * data.orbitRadius, data.originalY, Math.sin(data.orbitAngle) * data.orbitRadius);
+              // base outward direction toward target in XZ plus an upward bias
+              const baseDir = new THREE.Vector3(target.x, target.y, target.z).normalize();
+              const rand = new THREE.Vector3((Math.random() - 0.5), (Math.random() * 0.8 + 0.2), (Math.random() - 0.5)).normalize();
+              const velVec = baseDir.clone().add(rand.multiplyScalar(0.8)).normalize().multiplyScalar(EXPLOSION_FORCE * (0.9 + Math.random() * 0.6));
+              data.velocity = velVec;
+              data._velInitialized = true;
+              data._shatterInitTime = nowGlobal;
+              // set a target final scale for smooth growth
+              data._finalScale = 1;
+            }
+
+            // integrate physics
+            data.velocity.y -= GRAVITY * dt;
+            data.velocity.multiplyScalar(DAMPING);
+            shard.position.x += data.velocity.x * dt;
+            shard.position.y += data.velocity.y * dt;
+            shard.position.z += data.velocity.z * dt;
+
+            // scale up over time
+            const elapsed = nowGlobal - (data._shatterInitTime || nowGlobal);
+            const prog = Math.min(1, elapsed / (data.shatterDuration || 800));
+            const s = THREE.MathUtils.lerp(0.001, data._finalScale, prog);
+            shard.scale.setScalar(s);
+
+            shard.rotation.x += 0.02 + 0.03 * Math.random();
+            shard.rotation.y += 0.01 + 0.02 * Math.random();
+
+            // finish condition: if enough time passed and velocity slowed, snap to target
+            const target = data.targetPosition;
+            if ((elapsed > (data.shatterDuration || 800) && (data.velocity.length() < 0.8)) || (nowGlobal - startT) > ((data.shatterDuration || 800) + 1200)) {
+              if (target) shard.position.copy(target);
+              shard.scale.setScalar(data._finalScale);
+              data.velocity.set(0, 0, 0);
+              data.shattering = false;
+            } else {
+              allShardsDone = false;
+            }
+          } else if (!introComplete) {
+            // keep at origin until intro completes
+            shard.position.set(0, 0, 0);
+            shard.scale.setScalar(0.001);
+            allShardsDone = false;
+          } else {
+            // normal idle orbit behavior after intro
+            if (!data.isDragging) {
+              data.orbitAngle += data.orbitSpeed;
+              shard.position.x = Math.cos(data.orbitAngle) * data.orbitRadius;
+              shard.position.z = Math.sin(data.orbitAngle) * data.orbitRadius;
+              shard.position.y = data.targetPosition ? data.targetPosition.y + Math.sin(time * data.floatSpeed + data.floatOffset) * 1 : data.originalY + Math.sin(time * data.floatSpeed + data.floatOffset) * 1;
+            } else if (data.originalPosition) {
+              const pullStrength = 0.01; // Slower snap back
+              shard.position.lerp(data.originalPosition, pullStrength);
+            }
+
+            shard.rotation.x += data.rotationSpeedX;
+            shard.rotation.y += data.rotationSpeedY;
+            shard.rotation.z += data.rotationSpeedZ;
+
+            const targetScale = data.hovered ? 1.25 : 1;
+            shard.scale.x += (targetScale - shard.scale.x) * 0.08;
+            shard.scale.y += (targetScale - shard.scale.y) * 0.08;
+            shard.scale.z += (targetScale - shard.scale.z) * 0.08;
           }
-          
-          shard.rotation.x += data.rotationSpeedX;
-          shard.rotation.y += data.rotationSpeedY;
-          shard.rotation.z += data.rotationSpeedZ;
-          
-          const targetScale = data.hovered ? 1.25 : 1;
-          shard.scale.x += (targetScale - shard.scale.x) * 0.08;
-          shard.scale.y += (targetScale - shard.scale.y) * 0.08;
-          shard.scale.z += (targetScale - shard.scale.z) * 0.08;
         });
         
-        // Animate debris shards
+        // Animate debris shards (including intro shatter) with physics
+        let allDebrisDone = true;
+        const nowGlobal2 = Date.now();
         debrisShards.forEach(debris => {
           const data = debris.userData;
-          
-          if (!data.isDragging) {
-            data.orbitAngle += data.orbitSpeed;
-            debris.position.x = Math.cos(data.orbitAngle) * data.orbitRadius;
-            debris.position.z = Math.sin(data.orbitAngle) * data.orbitRadius;
-            debris.position.y = data.originalY + Math.sin(time * data.floatSpeed + data.floatOffset) * 0.8;
-          } else if (data.originalPosition) {
-            // Pull back to original position - slower for debris
-            const pullStrength = 0.008; // Even slower snap back for debris
-            debris.position.lerp(data.originalPosition, pullStrength);
+
+          if (data.shattering) {
+            const startT = data.shatterStart || 0;
+            if (nowGlobal2 < startT) {
+              allDebrisDone = false;
+              return;
+            }
+
+            // initialize velocity if needed
+            if (!data._velInitialized) {
+              const target = data.targetPosition || new THREE.Vector3(Math.cos(data.orbitAngle) * data.orbitRadius, data.originalY, Math.sin(data.orbitAngle) * data.orbitRadius);
+              const baseDir = target.clone().normalize();
+              const rand = new THREE.Vector3((Math.random() - 0.5), (Math.random() * 0.8 + 0.2), (Math.random() - 0.5)).normalize();
+              const velVec = baseDir.clone().add(rand.multiplyScalar(0.9)).normalize().multiplyScalar(EXPLOSION_FORCE * (1.0 + Math.random() * 0.8));
+              data.velocity = velVec;
+              data._velInitialized = true;
+              data._shatterInitTime = nowGlobal2;
+              data._finalScale = data._finalScale || (0.25 + Math.random() * 0.35);
+            }
+
+            // integrate
+            const dt = 0.016;
+            data.velocity.y -= GRAVITY * dt * 0.9;
+            data.velocity.multiplyScalar(DAMPING);
+            debris.position.x += data.velocity.x * dt;
+            debris.position.y += data.velocity.y * dt;
+            debris.position.z += data.velocity.z * dt;
+
+            const elapsed = nowGlobal2 - (data._shatterInitTime || nowGlobal2);
+            const prog = Math.min(1, elapsed / (data.shatterDuration || 600));
+            const s = THREE.MathUtils.lerp(0.001, data._finalScale, prog);
+            debris.scale.setScalar(s);
+
+            debris.rotation.x += 0.03 + 0.02 * Math.random();
+            debris.rotation.y += 0.02 + 0.03 * Math.random();
+
+            if ((elapsed > (data.shatterDuration || 600) && data.velocity.length() < 0.8) || (nowGlobal2 - startT) > ((data.shatterDuration || 600) + 1000)) {
+              if (data.targetPosition) debris.position.copy(data.targetPosition);
+              debris.scale.setScalar(data._finalScale || 0.25);
+              data.velocity.set(0, 0, 0);
+              data.shattering = false;
+            } else {
+              allDebrisDone = false;
+            }
+          } else if (!introComplete) {
+            debris.position.set(0, 0, 0);
+            debris.scale.setScalar(0.001);
+            allDebrisDone = false;
+          } else {
+            if (!data.isDragging) {
+              data.orbitAngle += data.orbitSpeed;
+              debris.position.x = Math.cos(data.orbitAngle) * data.orbitRadius;
+              debris.position.z = Math.sin(data.orbitAngle) * data.orbitRadius;
+              debris.position.y = data.targetPosition ? data.targetPosition.y + Math.sin(time * data.floatSpeed + data.floatOffset) * 0.8 : data.originalY + Math.sin(time * data.floatSpeed + data.floatOffset) * 0.8;
+            } else if (data.originalPosition) {
+              const pullStrength = 0.008;
+              debris.position.lerp(data.originalPosition, pullStrength);
+            }
+
+            debris.rotation.x += data.rotationSpeedX;
+            debris.rotation.y += data.rotationSpeedY;
+            debris.rotation.z += data.rotationSpeedZ;
           }
-          
-          debris.rotation.x += data.rotationSpeedX;
-          debris.rotation.y += data.rotationSpeedY;
-          debris.rotation.z += data.rotationSpeedZ;
         });
+
+        // Update intro particle burst if present
+        if (introParticles) {
+          const p = introParticles;
+          const geom = p.mesh.geometry;
+          const pos = geom.attributes.position.array;
+          const vel = p.velocities;
+          const elapsed = Date.now() - p.startTime;
+          const life = p.life;
+          const dt = 0.016;
+          for (let i = 0; i < PARTICLE_COUNT; i++) {
+            // apply gravity and damping
+            vel[i * 3 + 1] -= GRAVITY * dt * 0.6;
+            vel[i * 3] *= DAMPING;
+            vel[i * 3 + 1] *= DAMPING;
+            vel[i * 3 + 2] *= DAMPING;
+
+            pos[i * 3] += vel[i * 3] * dt;
+            pos[i * 3 + 1] += vel[i * 3 + 1] * dt;
+            pos[i * 3 + 2] += vel[i * 3 + 2] * dt;
+          }
+          geom.attributes.position.needsUpdate = true;
+          // fade material
+          const fade = Math.max(0, 1 - elapsed / life);
+          p.mesh.material.opacity = fade * 0.9;
+          if (elapsed > life) {
+            scene.remove(p.mesh);
+            if (p.mesh.geometry) p.mesh.geometry.dispose();
+            if (p.mesh.material) p.mesh.material.dispose();
+            introParticles = null;
+          }
+        }
+
+        // --- Dynamic environment interactions: fog pulse & ripple ---
+        // Compute a weighted focus point and color from the nearest shards
+        // to the camera's forward point. This lets multiple shards subtly
+        // influence the fog (creates cyan/violet pulses when you look around).
+        let focusPoint = null;
+        const focusColor = new THREE.Color(0x66ccff);
+
+        // how many nearest shards to sample
+        const NEAREST_COUNT = 3;
+
+        // If user explicitly hovers a shard, bias toward it but still include neighbors
+        if (hoveredShard) {
+          // base focus on hovered shard but force the fog tint to the cinematic deep blue
+          focusPoint = hoveredShard.position.clone();
+          focusColor.setHex(KEY_COLOR);
+        } else if (shardMeshes.length > 0) {
+          // cast a short ray forward from camera to get an approximate focal point
+          const camDir = new THREE.Vector3();
+          camera.getWorldDirection(camDir);
+          const camPoint = camera.position.clone().add(camDir.multiplyScalar(10));
+
+          // gather distances to camPoint
+          const arr = shardMeshes.map(s => ({ mesh: s, d: s.position.distanceTo(camPoint) }));
+          arr.sort((a, b) => a.d - b.d);
+
+          // take up to NEAREST_COUNT shards and compute weighted average by inverse distance
+          let totalW = 0;
+          const avgPos = new THREE.Vector3(0, 0, 0);
+          const accumColor = new THREE.Color(0x000000);
+          const count = Math.min(NEAREST_COUNT, arr.length);
+          for (let i = 0; i < count; i++) {
+            const item = arr[i];
+            const d = Math.max(0.001, item.d);
+            const w = 1.0 / d; // closer shards get more weight
+            totalW += w;
+            avgPos.addScaledVector(item.mesh.position, w);
+            // Ignore individual project colors for fog — always use cinematic deep blue
+            const c = new THREE.Color(KEY_COLOR);
+            accumColor.r += c.r * w;
+            accumColor.g += c.g * w;
+            accumColor.b += c.b * w;
+          }
+
+          if (totalW > 0) {
+            avgPos.multiplyScalar(1 / totalW);
+            accumColor.r /= totalW;
+            accumColor.g /= totalW;
+            accumColor.b /= totalW;
+            focusPoint = avgPos;
+            focusColor.copy(accumColor);
+          }
+        }
+
+        if (focusPoint) {
+          // compute a representative distance (use distance to camera)
+          const camDist = camera.position.distanceTo(focusPoint);
+          const influence = Math.max(0, 1 - Math.min(camDist / MAX_FOG_PULSE_DISTANCE, 1));
+
+          // update soft point light (fogPulseLight) for physical shading fallback
+          fogPulseLight.position.copy(focusPoint);
+          // keep pulse subtle: lower multiplier, softer falloff
+          fogPulseLight.intensity = 0.9 * Math.pow(influence, 1.2);
+          // Force the fog/light tint to the cinematic KEY_COLOR so the haze
+          // remains consistently deep-blue and never becomes yellow/green.
+          focusColor.setHex(KEY_COLOR);
+          fogPulseLight.color.lerp(focusColor, 0.9);
+
+          // subtly tint the scene fog toward the focus color (mostly BASE_FOG_COLOR)
+          const targetFog = focusColor.clone().multiplyScalar(0.42).add(BASE_FOG_COLOR.clone().multiplyScalar(0.58));
+          const lerpAmt = 0.06 * influence; // per-frame lerp amount
+          scene.fog.color.lerp(targetFog, lerpAmt);
+
+          // push values into a postprocessing fog pass if present so the shader
+          // gets the same focus information (keeps both paths consistent)
+          try {
+            if (typeof fogPass !== 'undefined' && fogPass && fogPass.uniforms) {
+              if (fogPass.uniforms['lightPos'] && fogPass.uniforms['lightPos'].value) fogPass.uniforms['lightPos'].value.copy(focusPoint);
+              if (fogPass.uniforms['lightColor'] && fogPass.uniforms['lightColor'].value) fogPass.uniforms['lightColor'].value.copy(focusColor);
+              if (fogPass.uniforms['baseDensity']) fogPass.uniforms['baseDensity'].value = 0.012 + 0.02 * influence;
+            }
+          } catch (e) {
+            // ignore if fogPass not available or uniforms missing
+          }
+
+          // tweak ripple plane color/opacity to match
+          if (rippleUniforms) {
+            // keep ripple color locked to KEY_COLOR (deep-blue) to avoid hue shifts
+            if (rippleUniforms.uColor && rippleUniforms.uColor.value) rippleUniforms.uColor.value.setHex(KEY_COLOR);
+            if (rippleUniforms.uOpacity) rippleUniforms.uOpacity.value = 0.06 + 0.18 * influence;
+          }
+        } else {
+          // fade back to base fog color
+          scene.fog.color.lerp(BASE_FOG_COLOR, 0.01);
+          fogPulseLight.intensity = Math.max(0, fogPulseLight.intensity - 0.01);
+          if (rippleUniforms) {
+            rippleUniforms.uColor.value.lerp(new THREE.Color(0x000000), 0.02);
+            rippleUniforms.uOpacity.value = THREE.MathUtils.lerp(rippleUniforms.uOpacity.value, 0.12, 0.02);
+          }
+        }
+
+        // drive ripple time uniform
+        if (rippleUniforms) rippleUniforms.uTime.value = performance.now() * 0.001;
+
+
+        // If all shards and debris finished shattering, mark introComplete so normal behavior begins
+        if (!introComplete) {
+          const anyShattering = shardMeshes.some(s => s.userData.shattering);
+          const anyDebrisShattering = debrisShards.some(d => d.userData.shattering);
+          if (!anyShattering && !anyDebrisShattering) {
+            introComplete = true;
+            // ensure final positions and scales are set
+            shardMeshes.forEach(s => { if (s.userData.targetPosition) s.position.copy(s.userData.targetPosition); s.scale.setScalar(1); });
+            debrisShards.forEach(d => { if (d.userData.targetPosition) d.position.copy(d.userData.targetPosition); d.scale.setScalar(d.userData._finalScale || 0.25); });
+          }
+        }
         
         // Draw lines from drag connections to dragged object
-        if (draggedObject && dragConnections.length > 0) {
+  if (draggedObject && dragConnections.length > 0 && draggedObject.userData && draggedObject.userData.wasDragged) {
           dragConnections.forEach((connector, index) => {
-            // Create visual lines showing the pull connections
+            // Create visual lines showing the pull connections as a black outline + white center
             const lineKey = `drag-line-${index}`;
-            let dragLine = scene.getObjectByName(lineKey);
-            
-            if (!dragLine) {
-              const lineGeometry = new THREE.BufferGeometry().setFromPoints([
-                connector.position.clone(),
-                draggedObject.position.clone()
-              ]);
-              const lineMaterial = new THREE.LineBasicMaterial({ 
-                color: 0x000000,
-                transparent: true,
-                opacity: 0.6,
-                linewidth: 2
-              });
-              dragLine = new THREE.Line(lineGeometry, lineMaterial);
-              dragLine.name = lineKey;
-              scene.add(dragLine);
+            let dragGroup = scene.getObjectByName(lineKey);
+
+            // Build or update a Group that contains two lines: outline (black) and center (white)
+            if (!dragGroup) {
+              const startPos = connector.position.clone();
+              const endPos = draggedObject.position.clone();
+
+              const outlineMatMesh = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 });
+              const outlineGroup = createConnectorCylinder(startPos, endPos, 0.04, outlineMatMesh); // thinner and white
+
+              // add the anchored outline group directly and name it so we can find/update it
+              outlineGroup.name = lineKey;
+              scene.add(outlineGroup);
+              dragGroup = outlineGroup;
             } else {
-              // Update line positions
-              const positions = dragLine.geometry.attributes.position.array;
-              positions[0] = connector.position.x;
-              positions[1] = connector.position.y;
-              positions[2] = connector.position.z;
-              positions[3] = draggedObject.position.x;
-              positions[4] = draggedObject.position.y;
-              positions[5] = draggedObject.position.z;
-              dragLine.geometry.attributes.position.needsUpdate = true;
+              // Update anchored outline group (we store the anchored parent as dragGroup)
+              // dragGroup is the parent returned by createConnectorCylinder; child mesh is at children[0]
+              const start = connector.position.clone();
+              const end = draggedObject.position.clone();
+              const dir = new THREE.Vector3().subVectors(end, start);
+              const fullLen = Math.max(dir.length(), 0.001);
+
+              // update parent position & orientation
+              if (dragGroup) {
+                dragGroup.position.copy(start);
+                dragGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+
+                // compute growth progress
+                const now = Date.now();
+                const growStart = (dragGroup.userData && dragGroup.userData.growStartTime) || now;
+                const growDur = (dragGroup.userData && dragGroup.userData.growDuration) || 400;
+                const t = Math.min(1, Math.max(0, (now - growStart) / growDur));
+
+                const childMesh = dragGroup.children && dragGroup.children[0];
+                if (childMesh) {
+                  childMesh.scale.x = 1;
+                  childMesh.scale.z = 1;
+                  childMesh.scale.y = Math.max(0.001, fullLen * t);
+                }
+              }
             }
             
-            // Apply pull force
-            const direction = new THREE.Vector3().subVectors(
-              draggedObject.userData.originalPosition,
-              draggedObject.position
-            );
-            const distance = direction.length();
-            
-            // Apply stronger pull the further it is
-            if (distance > 0.1) {
-              const pullForce = direction.normalize().multiplyScalar(distance * 0.03);
-              draggedObject.position.add(pullForce);
+            // Apply pull force only when this piece is being pulled back (was previously dragged out)
+            if (draggedObject.userData && draggedObject.userData.wasDragged) {
+              const direction = new THREE.Vector3().subVectors(
+                draggedObject.userData.originalPosition,
+                draggedObject.position
+              );
+              const distance = direction.length();
+
+              // Apply stronger pull the further it is
+              if (distance > 0.1) {
+                const pullForce = direction.normalize().multiplyScalar(distance * 0.03);
+                draggedObject.position.add(pullForce);
+              }
             }
           });
         } else {
           // Clean up drag lines when not dragging
           for (let i = 0; i < 5; i++) {
             const lineKey = `drag-line-${i}`;
-            const dragLine = scene.getObjectByName(lineKey);
-            if (dragLine) {
-              scene.remove(dragLine);
-              dragLine.geometry.dispose();
-              dragLine.material.dispose();
+            const dragGroup = scene.getObjectByName(lineKey);
+            if (dragGroup) {
+              // recursively dispose children and nested children
+              const disposeRec = (obj) => {
+                if (!obj) return;
+                if (obj.geometry) { try { obj.geometry.dispose(); } catch(e) {} }
+                if (obj.material) {
+                  if (Array.isArray(obj.material)) obj.material.forEach(m => { try { m.dispose(); } catch(e) {} });
+                  else try { obj.material.dispose(); } catch(e) {}
+                }
+                if (obj.children && obj.children.length) {
+                  obj.children.forEach(c => disposeRec(c));
+                }
+              };
+
+              disposeRec(dragGroup);
+              scene.remove(dragGroup);
             }
           }
         }
@@ -1318,51 +1896,120 @@
           }
         }
         
-        // Animate glow effects and glitches
-        connectionLines.forEach(lineData => {
+        // Animate glow effects, dots and dot-lines (handle fading/removal)
+        for (let i = connectionLines.length - 1; i >= 0; i--) {
+          const lineData = connectionLines[i];
+
+          // Glow handling (existing behavior)
           if (lineData.isGlow) {
             if (lineData.fadingOut) {
-              const fadeProgress = (Date.now() - lineData.fadeStartTime) / 2000;
-              lineData.material.opacity = Math.max(0, 0.5 * (1 - fadeProgress));
-              
+                const fadeProgress = (Date.now() - lineData.fadeStartTime) / 2000;
+                lineData.material.opacity = Math.max(0, 0.5 * (1 - fadeProgress));
+
+                if (fadeProgress >= 1) {
+                  // remove mesh and dispose materials/geometry (handle grouped mesh)
+                  if (lineData.mesh) {
+                    if (lineData.mesh.children && lineData.mesh.children.length) {
+                      lineData.mesh.children.forEach(child => {
+                        if (child.geometry) child.geometry.dispose();
+                        if (child.material) {
+                          if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+                          else child.material.dispose();
+                        }
+                      });
+                    }
+                    scene.remove(lineData.mesh);
+                  }
+
+                  if (lineData.material && !(lineData.mesh && lineData.mesh.material)) {
+                    // dispose standalone material if present (glow material)
+                    if (Array.isArray(lineData.material)) lineData.material.forEach(m => m.dispose());
+                    else lineData.material.dispose();
+                  }
+
+                  const idx = connectionLines.indexOf(lineData);
+                  if (idx > -1) connectionLines.splice(idx, 1);
+                }
+              } else {
+                // Pulse the glow (white outline mesh)
+                const pulse = Math.sin(time * 3) * 0.5 + 0.5;
+                lineData.material.opacity = 0.3 + pulse * 0.2;
+                if (lineData.mesh) lineData.mesh.scale.setScalar(1.5 + pulse * 0.15);
+
+                // Sync position and rotation with target shard (no glitching)
+                if (lineData.targetShard) {
+                  lineData.mesh.position.copy(lineData.targetShard.position);
+                  lineData.mesh.rotation.copy(lineData.targetShard.rotation);
+                }
+              }
+          }
+
+          // Dots and dot-lines fade-out handling
+          if (lineData.isDot || lineData.isDotLine) {
+            if (lineData.fadingOut) {
+              const fadeProgress = (Date.now() - lineData.fadeStartTime) / 1000; // faster fade for dots
+              if (lineData.material) lineData.material.opacity = Math.max(0, (lineData.material.opacity || 1) * (1 - fadeProgress));
+
               if (fadeProgress >= 1) {
-                scene.remove(lineData.mesh);
-                lineData.material.dispose();
-                const index = connectionLines.indexOf(lineData);
-                if (index > -1) connectionLines.splice(index, 1);
+                // remove mesh/line and dispose current geometries/materials
+                if (lineData.mesh) {
+                  scene.remove(lineData.mesh);
+                  if (lineData.mesh.geometry) lineData.mesh.geometry.dispose();
+                  if (lineData.mesh.material) {
+                    if (Array.isArray(lineData.mesh.material)) lineData.mesh.material.forEach(m => m.dispose());
+                    else lineData.mesh.material.dispose();
+                  }
+                }
+                if (lineData.line) {
+                  scene.remove(lineData.line);
+                  if (lineData.line.geometry) lineData.line.geometry.dispose();
+                  if (lineData.line.material) {
+                    if (Array.isArray(lineData.line.material)) lineData.line.material.forEach(m => m.dispose());
+                    else lineData.line.material.dispose();
+                  }
+                }
+
+                connectionLines.splice(i, 1);
               }
             } else {
-              // Pulse the glow
-              const pulse = Math.sin(time * 3) * 0.5 + 0.5;
-              lineData.material.opacity = 0.3 + pulse * 0.2;
-              lineData.mesh.scale.setScalar(1.5 + pulse * 0.15);
-              
-              // Sync position and rotation with target shard
-              if (lineData.targetShard) {
-                lineData.mesh.position.copy(lineData.targetShard.position);
-                lineData.mesh.rotation.copy(lineData.targetShard.rotation);
-                
-                // Glitch effect
-                lineData.glitchTimer += 0.016;
-                if (lineData.glitchTimer > 0.15) {
-                  lineData.glitchTimer = 0;
-                  lineData.glitchActive = !lineData.glitchActive;
-                }
-                
-                if (lineData.glitchActive) {
-                  // Random offset glitch
-                  lineData.targetShard.position.x += (Math.random() - 0.5) * 0.3;
-                  lineData.targetShard.position.y += (Math.random() - 0.5) * 0.3;
-                  lineData.targetShard.position.z += (Math.random() - 0.5) * 0.3;
-                  
-                  // Scale glitch
-                  const glitchScale = 1 + (Math.random() - 0.5) * 0.15;
-                  lineData.targetShard.scale.setScalar(glitchScale);
+              // Keep dots/lines synced to their waypoints so they follow animated objects
+              if (lineData.isDot && lineData.mesh && lineData.waypoint) {
+                lineData.mesh.position.copy(lineData.waypoint.position);
+              }
+              if (lineData.isDotLine && lineData.line && lineData.startWaypoint && lineData.endWaypoint) {
+                const pts = [lineData.startWaypoint.position.clone(), lineData.endWaypoint.position.clone()];
+                lineData.geometry.setFromPoints(pts);
+                if (lineData.geometry.attributes && lineData.geometry.attributes.position) lineData.geometry.attributes.position.needsUpdate = true;
+              }
+              // If the outline for the dot-line is a mesh (cylinder), update its geometry/transform as the waypoints move
+              if (lineData.isDotLine && lineData.mesh && lineData.startWaypoint && lineData.endWaypoint) {
+                // outline is returned as a parent Object3D (mesh = parent).children[0] is the cylinder mesh
+                const start = lineData.startWaypoint.position.clone();
+                const end = lineData.endWaypoint.position.clone();
+                const dir = new THREE.Vector3().subVectors(end, start);
+                const fullLen = Math.max(dir.length(), 0.001);
+
+                // update parent position & orientation
+                lineData.mesh.position.copy(start);
+                lineData.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+
+                // determine growth progress
+                const now = Date.now();
+                const growStart = lineData.growStartTime || lineData.startTime || now;
+                const growDur = lineData.growDuration || 400;
+                const t = Math.min(1, Math.max(0, (now - growStart) / growDur));
+
+                // scale the child mesh in Y to represent current length (unit geometry scaled)
+                const child = lineData.mesh.children[0];
+                if (child) {
+                  child.scale.x = 1;
+                  child.scale.z = 1;
+                  child.scale.y = Math.max(0.001, fullLen * t);
                 }
               }
             }
           }
-        });
+        }
         
       } else if (currentMode === 'project') {
         // Animate project worlds
