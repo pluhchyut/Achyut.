@@ -13,8 +13,9 @@
     
     body {
       font-family: 'Courier New', monospace;
-      background: #000;
+      background: #fff;
       overflow: hidden;
+      cursor: default;
     }
     
     #canvas {
@@ -25,14 +26,14 @@
     
     .label {
       position: absolute;
-      color: white;
+      color: black;
       font-size: 24px;
       font-weight: 100;
       letter-spacing: 4px;
       pointer-events: none;
       opacity: 0;
       transition: opacity 0.3s;
-      text-shadow: 0 0 20px rgba(255,255,255,0.5);
+      text-shadow: 0 0 20px rgba(0,0,0,0.3);
       transform: translate(-50%, -50%);
     }
     
@@ -52,7 +53,7 @@
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
-      color: white;
+      color: black;
       font-size: 10px;
       letter-spacing: 3px;
       opacity: 0.3;
@@ -154,10 +155,12 @@
   <script>
     // Scene setup
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x000000, 0.015);
+    scene.background = new THREE.Color(0xffffff);
+    scene.fog = new THREE.FogExp2(0xffffff, 0.015);
     
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.z = 20;
+    camera.position.set(0, 5, 25);
+    camera.lookAt(0, 0, 0);
     
     const renderer = new THREE.WebGLRenderer({ 
       canvas: document.getElementById('canvas'),
@@ -179,36 +182,67 @@
     ];
     
     // State management
-    let currentMode = 'void'; // 'void' or 'project'
+    let currentMode = 'void';
     let currentProjectId = null;
     let projectObjects = [];
+    let debrisShards = [];
     
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+    // Lighting - Cool blue-white key light
+    const ambientLight = new THREE.AmbientLight(0x1a1a2e, 0.2);
     scene.add(ambientLight);
     
-    const pointLight = new THREE.PointLight(0xffffff, 2, 100);
-    pointLight.position.set(10, 10, 10);
-    scene.add(pointLight);
+    const keyLight = new THREE.PointLight(0xaaddff, 2.5, 100);
+    keyLight.position.set(8, 12, 8);
+    scene.add(keyLight);
     
-    const rimLight = new THREE.PointLight(0x4444ff, 1.5, 50);
-    rimLight.position.set(-5, 5, -5);
+    const rimLight = new THREE.PointLight(0x4488ff, 1.2, 50);
+    rimLight.position.set(-8, 8, -8);
     scene.add(rimLight);
     
-    const backLight = new THREE.PointLight(0xff4444, 1, 40);
-    backLight.position.set(0, -10, -10);
-    scene.add(backLight);
+    const fillLight = new THREE.PointLight(0x88aaff, 0.8, 40);
+    fillLight.position.set(0, 5, -10);
+    scene.add(fillLight);
     
-    // Environment sphere
-    const envGeometry = new THREE.SphereGeometry(100, 32, 32);
-    const envMaterial = new THREE.MeshBasicMaterial({
-      color: 0x0a0a0a,
-      side: THREE.BackSide,
-      transparent: true,
-      opacity: 0.8
+    // Obsidian floor
+    const floorGeometry = new THREE.PlaneGeometry(200, 200);
+    const floorMaterial = new THREE.MeshPhysicalMaterial({
+      metalness: 0.9,
+      roughness: 0.6,
+      color: 0x050505,
+      clearcoat: 1,
+      clearcoatRoughness: 0.3,
+      reflectivity: 0.7,
+      envMapIntensity: 0.5
     });
-    const envSphere = new THREE.Mesh(envGeometry, envMaterial);
-    scene.add(envSphere);
+    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -5;
+    scene.add(floor);
+    
+    // Mist particles
+    const particleCount = 800;
+    const particleGeometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    
+    for (let i = 0; i < particleCount * 3; i += 3) {
+      positions[i] = (Math.random() - 0.5) * 100;
+      positions[i + 1] = Math.random() * 40 - 5;
+      positions[i + 2] = (Math.random() - 0.5) * 100;
+    }
+    
+    particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    
+    const particleMaterial = new THREE.PointsMaterial({
+      color: 0x6699bb,
+      size: 0.08,
+      opacity: 0.12,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
+    
+    const particles = new THREE.Points(particleGeometry, particleMaterial);
+    scene.add(particles);
     
     // Function to create irregular glass shard geometry
     function createShardGeometry() {
@@ -252,7 +286,7 @@
       return geometry;
     }
     
-    // Create 5 glass shards
+    // Create 5 glass shards with enhanced material
     const shards = [];
     const shardMeshes = [];
     
@@ -262,14 +296,18 @@
       const material = new THREE.MeshPhysicalMaterial({
         metalness: 1,
         roughness: 0.05,
+        transmission: 0.1,
+        thickness: 0.2,
+        reflectivity: 1,
+        clearcoat: 1,
+        clearcoatRoughness: 0.05,
         color: 0xcccccc,
         emissive: 0x000000,
         emissiveIntensity: 0,
         transparent: true,
-        opacity: 0.85,
+        opacity: 0.9,
         side: THREE.DoubleSide,
-        envMapIntensity: 1.5,
-        reflectivity: 1
+        envMapIntensity: 1.5
       });
       
       const shard = new THREE.Mesh(geometry, material);
@@ -277,7 +315,7 @@
       const angle = (i / 5) * Math.PI * 2;
       const radius = 12;
       shard.position.x = Math.cos(angle) * radius;
-      shard.position.y = (Math.random() - 0.5) * 6;
+      shard.position.y = (Math.random() - 0.5) * 4;
       shard.position.z = Math.sin(angle) * radius;
       
       shard.rotation.x = Math.random() * Math.PI * 2;
@@ -286,14 +324,14 @@
       
       shard.userData = {
         projectId: i,
-        orbitSpeed: 0.0003 + Math.random() * 0.0005,
+        orbitSpeed: 0.0002 + Math.random() * 0.0003,
         orbitAngle: angle,
         orbitRadius: radius,
-        floatSpeed: 0.0008 + Math.random() * 0.0012,
+        floatSpeed: 0.0005 + Math.random() * 0.0008,
         floatOffset: Math.random() * Math.PI * 2,
-        rotationSpeedX: (Math.random() - 0.5) * 0.01,
-        rotationSpeedY: (Math.random() - 0.5) * 0.01,
-        rotationSpeedZ: (Math.random() - 0.5) * 0.008,
+        rotationSpeedX: (Math.random() - 0.5) * 0.001,
+        rotationSpeedY: (Math.random() - 0.5) * 0.0007,
+        rotationSpeedZ: (Math.random() - 0.5) * 0.0005,
         originalY: shard.position.y,
         hovered: false
       };
@@ -306,12 +344,58 @@
       });
     }
     
+    // Create debris shards (smaller pieces for depth)
+    for (let i = 0; i < 25; i++) {
+      const geometry = createShardGeometry();
+      const material = new THREE.MeshPhysicalMaterial({
+        metalness: 1,
+        roughness: 0.08,
+        transmission: 0.15,
+        thickness: 0.1,
+        reflectivity: 1,
+        clearcoat: 0.8,
+        clearcoatRoughness: 0.1,
+        color: 0xaaaaaa,
+        transparent: true,
+        opacity: 0.5,
+        side: THREE.DoubleSide,
+        envMapIntensity: 1.2
+      });
+      
+      const debris = new THREE.Mesh(geometry, material);
+      debris.scale.setScalar(0.25 + Math.random() * 0.35);
+      
+      const angle = (i / 25) * Math.PI * 2;
+      const radius = 6 + Math.random() * 10;
+      debris.position.x = Math.cos(angle) * radius;
+      debris.position.y = (Math.random() - 0.5) * 12;
+      debris.position.z = Math.sin(angle) * radius;
+      
+      debris.rotation.x = Math.random() * Math.PI * 2;
+      debris.rotation.y = Math.random() * Math.PI * 2;
+      debris.rotation.z = Math.random() * Math.PI * 2;
+      
+      debris.userData = {
+        orbitSpeed: 0.0001 + Math.random() * 0.0003,
+        orbitAngle: angle,
+        orbitRadius: radius,
+        floatSpeed: 0.0008 + Math.random() * 0.0015,
+        floatOffset: Math.random() * Math.PI * 2,
+        rotationSpeedX: (Math.random() - 0.5) * 0.002,
+        rotationSpeedY: (Math.random() - 0.5) * 0.002,
+        rotationSpeedZ: (Math.random() - 0.5) * 0.0015,
+        originalY: debris.position.y
+      };
+      
+      scene.add(debris);
+      debrisShards.push(debris);
+    }
+    
     // Project world creators
     function createNeuralAIWorld() {
       const objects = [];
       const color = 0x00ffff;
       
-      // Neural network nodes
       const nodeGeometry = new THREE.SphereGeometry(0.3, 16, 16);
       const nodeMaterial = new THREE.MeshBasicMaterial({ 
         color: color,
@@ -319,7 +403,6 @@
         opacity: 0.8
       });
       
-      // Create layers of nodes
       for (let layer = 0; layer < 4; layer++) {
         const nodesInLayer = 3 + layer;
         for (let i = 0; i < nodesInLayer; i++) {
@@ -336,7 +419,6 @@
         }
       }
       
-      // Connection lines
       const lineMaterial = new THREE.LineBasicMaterial({ 
         color: color,
         transparent: true,
@@ -362,7 +444,6 @@
       const objects = [];
       const color = 0xff00ff;
       
-      // Floating UI panels
       for (let i = 0; i < 8; i++) {
         const width = 2 + Math.random() * 2;
         const height = 1.5 + Math.random() * 1.5;
@@ -381,7 +462,6 @@
         panel.position.z = Math.sin(angle) * 6;
         panel.lookAt(0, 0, 0);
         
-        // Add glowing edge
         const edgeGeometry = new THREE.EdgesGeometry(panelGeometry);
         const edgeMaterial = new THREE.LineBasicMaterial({ color: color });
         const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
@@ -403,7 +483,6 @@
       const objects = [];
       const color = 0xffff00;
       
-      // Voxel terrain
       const voxelSize = 0.8;
       const gridSize = 12;
       
@@ -436,7 +515,6 @@
       const objects = [];
       const color = 0x00ff00;
       
-      // Pulsating grid
       const gridSize = 20;
       const spacing = 1;
       
@@ -472,7 +550,6 @@
       const objects = [];
       const color = 0xff6600;
       
-      // Chain of blocks
       const blockCount = 12;
       
       for (let i = 0; i < blockCount; i++) {
@@ -501,7 +578,6 @@
           radius: radius
         };
         
-        // Add wireframe
         const wireframeGeometry = new THREE.EdgesGeometry(blockGeometry);
         const wireframeMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
         const wireframe = new THREE.LineSegments(wireframeGeometry, wireframeMaterial);
@@ -517,19 +593,20 @@
     function enterProjectWorld(projectId) {
       const fadeOverlay = document.getElementById('fade-overlay');
       
-      // Fade to black
       fadeOverlay.classList.add('active');
       
       setTimeout(() => {
         currentMode = 'project';
         currentProjectId = projectId;
         
-        // Hide shards
         shardMeshes.forEach(shard => {
           shard.visible = false;
         });
         
-        // Create project world
+        debrisShards.forEach(debris => {
+          debris.visible = false;
+        });
+        
         switch(projectId) {
           case 0:
             projectObjects = createNeuralAIWorld();
@@ -553,7 +630,6 @@
             break;
         }
         
-        // Show project overlay
         const overlay = document.getElementById('project-overlay');
         const title = document.getElementById('project-title');
         const description = document.getElementById('project-description');
@@ -563,10 +639,8 @@
         description.textContent = projects[projectId].desc;
         overlay.classList.add('visible');
         
-        // Zoom camera
         camera.position.z = 15;
         
-        // Fade back in
         setTimeout(() => {
           fadeOverlay.classList.remove('active');
         }, 100);
@@ -577,16 +651,13 @@
       const fadeOverlay = document.getElementById('fade-overlay');
       const overlay = document.getElementById('project-overlay');
       
-      // Hide overlay first
       overlay.classList.remove('visible');
       
-      // Fade to black
       fadeOverlay.classList.add('active');
       
       setTimeout(() => {
         currentMode = 'void';
         
-        // Remove project objects
         projectObjects.forEach(obj => {
           scene.remove(obj);
           if (obj.geometry) obj.geometry.dispose();
@@ -600,52 +671,260 @@
         });
         projectObjects = [];
         
-        // Show shards
         shardMeshes.forEach(shard => {
           shard.visible = true;
           shard.material.emissive.setHex(0x000000);
           shard.material.emissiveIntensity = 0;
         });
         
-        // Reset fog
+        debrisShards.forEach(debris => {
+          debris.visible = true;
+        });
+        
         scene.fog.color.setHex(0x000000);
         
-        // Reset camera
-        camera.position.x = 0;
-        camera.position.y = 0;
-        camera.position.z = 20;
+        // Reset camera to initial spherical position
+        cameraRotation.theta = 0;
+        cameraRotation.phi = Math.PI / 8;
+        cameraDistance = 25;
+        updateCameraPosition();
         
         currentProjectId = null;
         
-        // Fade back in
         setTimeout(() => {
           fadeOverlay.classList.remove('active');
         }, 100);
       }, 800);
     }
     
-    // Mouse interaction
+    // Mouse interaction and camera controls
     const mouse = new THREE.Vector2();
     const raycaster = new THREE.Raycaster();
     let hoveredShard = null;
+    let hoveredDebris = null;
+    let connectionLines = [];
+    let lineAnimations = [];
     
     const label = document.getElementById('label');
     const labelName = document.getElementById('label-name');
     const labelDesc = document.getElementById('label-desc');
+    
+    // Function to find nearest shard to a position
+    function findNearestShard(position, shardArray) {
+      let nearest = null;
+      let minDistance = Infinity;
+      
+      shardArray.forEach(shard => {
+        const distance = position.distanceTo(shard.position);
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearest = shard;
+        }
+      });
+      
+      return nearest;
+    }
+    
+    // Function to create connection lines
+    function createConnectionLines() {
+      // Mark existing lines for fade out
+      connectionLines.forEach(lineData => {
+        if (!lineData.fadingOut) {
+          lineData.fadingOut = true;
+          lineData.fadeStartTime = Date.now();
+        }
+      });
+      
+      if (!hoveredDebris) return;
+      
+      // Create chained connections from debris to debris to main shard
+      let currentDebris = hoveredDebris;
+      const processedDebris = new Set([hoveredDebris]);
+      
+      const connectionPath = [];
+      let targetShard = null;
+      
+      // Build the path
+      for (let i = 0; i < 5; i++) {
+        const nearestShard = findNearestShard(currentDebris.position, shardMeshes);
+        const nearestDebris = findNearestShard(
+          currentDebris.position, 
+          debrisShards.filter(d => !processedDebris.has(d))
+        );
+        
+        const distToShard = currentDebris.position.distanceTo(nearestShard.position);
+        const distToDebris = nearestDebris ? currentDebris.position.distanceTo(nearestDebris.position) : Infinity;
+        
+        if (distToShard < distToDebris || !nearestDebris) {
+          connectionPath.push({
+            start: currentDebris.position.clone(),
+            end: nearestShard.position.clone(),
+            debris: currentDebris
+          });
+          targetShard = nearestShard;
+          break;
+        } else {
+          connectionPath.push({
+            start: currentDebris.position.clone(),
+            end: nearestDebris.position.clone(),
+            debris: currentDebris
+          });
+          
+          processedDebris.add(nearestDebris);
+          currentDebris = nearestDebris;
+        }
+      }
+      
+      // Create glow for target shard
+      if (targetShard) {
+        const glowGeometry = targetShard.geometry.clone();
+        const glowMaterial = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0,
+          side: THREE.BackSide
+        });
+        const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+        glowMesh.position.copy(targetShard.position);
+        glowMesh.rotation.copy(targetShard.rotation);
+        glowMesh.scale.copy(targetShard.scale).multiplyScalar(1.5);
+        scene.add(glowMesh);
+        
+        connectionLines.push({
+          isGlow: true,
+          mesh: glowMesh,
+          material: glowMaterial,
+          targetShard: targetShard,
+          originalPosition: targetShard.position.clone(),
+          originalScale: targetShard.scale.clone(),
+          fadingOut: false,
+          fadeStartTime: 0,
+          glitchActive: false,
+          glitchTimer: 0
+        });
+      }
+      
+      // Create animated lines for each segment (with outline effect)
+      connectionPath.forEach((segment, index) => {
+        // Create white outline (thicker, drawn first)
+        const outlinePoints = [segment.start, segment.start.clone()];
+        const outlineGeometry = new THREE.BufferGeometry().setFromPoints(outlinePoints);
+        const outlineMaterial = new THREE.LineBasicMaterial({ 
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.9,
+          linewidth: 12
+        });
+        
+        const outlineLine = new THREE.Line(outlineGeometry, outlineMaterial);
+        scene.add(outlineLine);
+        
+        // Create black center line (thinner, drawn on top)
+        const centerPoints = [segment.start, segment.start.clone()];
+        const centerGeometry = new THREE.BufferGeometry().setFromPoints(centerPoints);
+        const centerMaterial = new THREE.LineBasicMaterial({ 
+          color: 0x000000,
+          transparent: true,
+          opacity: 0.9,
+          linewidth: 6
+        });
+        
+        const centerLine = new THREE.Line(centerGeometry, centerMaterial);
+        scene.add(centerLine);
+        
+        const lineData = {
+          outlineLine: outlineLine,
+          centerLine: centerLine,
+          outlineGeometry: outlineGeometry,
+          centerGeometry: centerGeometry,
+          outlineMaterial: outlineMaterial,
+          centerMaterial: centerMaterial,
+          start: segment.start,
+          end: segment.end,
+          debris: segment.debris,
+          progress: 0,
+          delay: index * 0.2,
+          startTime: Date.now(),
+          fadingOut: false,
+          fadeStartTime: 0,
+          segmentIndex: index,
+          totalSegments: connectionPath.length
+        };
+        
+        connectionLines.push(lineData);
+        lineAnimations.push(lineData);
+      });
+    }
+    
+    // Camera control variables
+    let isDragging = false;
+    let previousMousePosition = { x: 0, y: 0 };
+    let cameraRotation = { theta: 0, phi: Math.PI / 8 }; // theta: horizontal, phi: vertical
+    let cameraDistance = 25;
+    const MIN_DISTANCE = 8;
+    const MAX_DISTANCE = 50;
+    const MIN_PHI = 0.1; // Prevent going below ground (90 degrees from flat)
+    const MAX_PHI = Math.PI / 2 - 0.1; // Limit upward angle
+    
+    function updateCameraPosition() {
+      camera.position.x = cameraDistance * Math.sin(cameraRotation.phi) * Math.cos(cameraRotation.theta);
+      camera.position.y = cameraDistance * Math.cos(cameraRotation.phi);
+      camera.position.z = cameraDistance * Math.sin(cameraRotation.phi) * Math.sin(cameraRotation.theta);
+      camera.lookAt(0, 0, 0);
+    }
+    
+    window.addEventListener('mousedown', (event) => {
+      if (currentMode === 'void') {
+        isDragging = true;
+        previousMousePosition = { x: event.clientX, y: event.clientY };
+        document.body.style.cursor = 'grabbing';
+      }
+    });
+    
+    window.addEventListener('mouseup', () => {
+      isDragging = false;
+      document.body.style.cursor = 'default';
+    });
+    
+    window.addEventListener('wheel', (event) => {
+      if (currentMode === 'void') {
+        event.preventDefault();
+        cameraDistance += event.deltaY * 0.01;
+        cameraDistance = Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, cameraDistance));
+        updateCameraPosition();
+      }
+    }, { passive: false });
     
     window.addEventListener('mousemove', (event) => {
       mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
       mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
       
       if (currentMode === 'void') {
-        camera.position.x += (mouse.x * 3 - camera.position.x) * 0.05;
-        camera.position.y += (mouse.y * 3 - camera.position.y) * 0.05;
-        camera.lookAt(0, 0, 0);
+        if (isDragging) {
+          const deltaX = event.clientX - previousMousePosition.x;
+          const deltaY = event.clientY - previousMousePosition.y;
+          
+          cameraRotation.theta -= deltaX * 0.005;
+          cameraRotation.phi += deltaY * 0.005;
+          
+          // Clamp phi to prevent going through floor
+          cameraRotation.phi = Math.max(MIN_PHI, Math.min(MAX_PHI, cameraRotation.phi));
+          
+          updateCameraPosition();
+          
+          previousMousePosition = { x: event.clientX, y: event.clientY };
+        }
+        
+        // Move key light with cursor
+        keyLight.position.x = 8 + mouse.x * 5;
+        keyLight.position.z = 8 + mouse.y * 5;
         
         raycaster.setFromCamera(mouse, camera);
-        const intersects = raycaster.intersectObjects(shardMeshes);
         
-        if (hoveredShard && (!intersects.length || intersects[0].object !== hoveredShard)) {
+        // Check for shard intersections
+        const shardIntersects = raycaster.intersectObjects(shardMeshes);
+        
+        if (hoveredShard && (!shardIntersects.length || shardIntersects[0].object !== hoveredShard)) {
           hoveredShard.userData.hovered = false;
           hoveredShard.material.emissive.setHex(0x000000);
           hoveredShard.material.emissiveIntensity = 0;
@@ -653,16 +932,15 @@
           label.classList.remove('visible');
         }
         
-        if (intersects.length > 0) {
-          const shard = intersects[0].object;
+        if (shardIntersects.length > 0 && !isDragging) {
+          const shard = shardIntersects[0].object;
           if (shard !== hoveredShard) {
             hoveredShard = shard;
             shard.userData.hovered = true;
             const project = projects[shard.userData.projectId];
             shard.material.emissive.setHex(project.color);
-            shard.material.emissiveIntensity = 0.6;
+            shard.material.emissiveIntensity = 0.8;
             
-            const project = projects[shard.userData.projectId];
             labelName.textContent = project.name;
             labelDesc.textContent = project.desc;
             
@@ -678,11 +956,43 @@
             label.classList.add('visible');
           }
         }
+        
+        // Check for debris intersections
+        const debrisIntersects = raycaster.intersectObjects(debrisShards);
+        
+        if (hoveredDebris && (!debrisIntersects.length || debrisIntersects[0].object !== hoveredDebris)) {
+          hoveredDebris = null;
+          label.classList.remove('visible');
+          createConnectionLines(); // Clear lines
+        }
+        
+        if (debrisIntersects.length > 0 && !isDragging) {
+          const debris = debrisIntersects[0].object;
+          if (debris !== hoveredDebris) {
+            hoveredDebris = debris;
+            createConnectionLines();
+            
+            // Show label for debris
+            labelName.textContent = 'DEBRIS FRAGMENT';
+            labelDesc.textContent = 'Trace Connection';
+            
+            const vector = new THREE.Vector3();
+            debris.getWorldPosition(vector);
+            vector.project(camera);
+            
+            const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (-(vector.y * 0.5) + 0.5) * window.innerHeight;
+            
+            label.style.left = x + 'px';
+            label.style.top = (y - 80) + 'px';
+            label.classList.add('visible');
+          }
+        }
       }
     });
     
     window.addEventListener('click', () => {
-      if (currentMode === 'void' && hoveredShard) {
+      if (currentMode === 'void' && hoveredShard && !isDragging) {
         const projectId = hoveredShard.userData.projectId;
         enterProjectWorld(projectId);
       }
@@ -706,28 +1016,144 @@
           data.orbitAngle += data.orbitSpeed;
           shard.position.x = Math.cos(data.orbitAngle) * data.orbitRadius;
           shard.position.z = Math.sin(data.orbitAngle) * data.orbitRadius;
-          shard.position.y = data.originalY + Math.sin(time * data.floatSpeed + data.floatOffset) * 1.5;
+          shard.position.y = data.originalY + Math.sin(time * data.floatSpeed + data.floatOffset) * 1;
           
           shard.rotation.x += data.rotationSpeedX;
           shard.rotation.y += data.rotationSpeedY;
           shard.rotation.z += data.rotationSpeedZ;
           
-          const targetScale = data.hovered ? 1.3 : 1;
-          shard.scale.x += (targetScale - shard.scale.x) * 0.1;
-          shard.scale.y += (targetScale - shard.scale.y) * 0.1;
-          shard.scale.z += (targetScale - shard.scale.z) * 0.1;
+          const targetScale = data.hovered ? 1.25 : 1;
+          shard.scale.x += (targetScale - shard.scale.x) * 0.08;
+          shard.scale.y += (targetScale - shard.scale.y) * 0.08;
+          shard.scale.z += (targetScale - shard.scale.z) * 0.08;
         });
         
-        pointLight.position.x = Math.sin(time * 0.3) * 15;
-        pointLight.position.z = Math.cos(time * 0.3) * 15;
+        // Animate debris shards
+        debrisShards.forEach(debris => {
+          const data = debris.userData;
+          
+          data.orbitAngle += data.orbitSpeed;
+          debris.position.x = Math.cos(data.orbitAngle) * data.orbitRadius;
+          debris.position.z = Math.sin(data.orbitAngle) * data.orbitRadius;
+          debris.position.y = data.originalY + Math.sin(time * data.floatSpeed + data.floatOffset) * 0.8;
+          
+          debris.rotation.x += data.rotationSpeedX;
+          debris.rotation.y += data.rotationSpeedY;
+          debris.rotation.z += data.rotationSpeedZ;
+        });
         
-        rimLight.position.x = Math.cos(time * 0.4) * 12;
-        rimLight.position.y = Math.sin(time * 0.5) * 10;
+        // Animate mist particles
+        const positions = particles.geometry.attributes.position.array;
+        for (let i = 1; i < positions.length; i += 3) {
+          positions[i] += Math.sin(time * 0.1 + i) * 0.005;
+        }
+        particles.geometry.attributes.position.needsUpdate = true;
+        particles.rotation.y += 0.0001;
+        
+        // Animate connection lines
+        for (let i = lineAnimations.length - 1; i >= 0; i--) {
+          const lineData = lineAnimations[i];
+          const currentTime = Date.now();
+          
+          if (lineData.fadingOut) {
+            // Fade out over 2 seconds
+            const fadeProgress = (currentTime - lineData.fadeStartTime) / 2000;
+            lineData.outlineMaterial.opacity = Math.max(0, 0.9 * (1 - fadeProgress));
+            lineData.centerMaterial.opacity = Math.max(0, 0.9 * (1 - fadeProgress));
+            
+            if (fadeProgress >= 1) {
+              scene.remove(lineData.outlineLine);
+              scene.remove(lineData.centerLine);
+              lineData.outlineGeometry.dispose();
+              lineData.centerGeometry.dispose();
+              lineData.outlineMaterial.dispose();
+              lineData.centerMaterial.dispose();
+              
+              lineAnimations.splice(i, 1);
+              const index = connectionLines.indexOf(lineData);
+              if (index > -1) connectionLines.splice(index, 1);
+            }
+          } else {
+            // Animate line growth - faster and smoother
+            const elapsed = (currentTime - lineData.startTime) / 1000;
+            const adjustedTime = Math.max(0, elapsed - lineData.delay);
+            lineData.progress = Math.min(1, adjustedTime / 0.5); // 0.5 second growth per segment (faster)
+            
+            if (lineData.progress > 0) {
+              const currentEnd = new THREE.Vector3().lerpVectors(
+                lineData.start,
+                lineData.end,
+                lineData.progress
+              );
+              
+              // Update outline
+              const outlinePositions = lineData.outlineGeometry.attributes.position.array;
+              outlinePositions[3] = currentEnd.x;
+              outlinePositions[4] = currentEnd.y;
+              outlinePositions[5] = currentEnd.z;
+              lineData.outlineGeometry.attributes.position.needsUpdate = true;
+              
+              // Update center line
+              const centerPositions = lineData.centerGeometry.attributes.position.array;
+              centerPositions[3] = currentEnd.x;
+              centerPositions[4] = currentEnd.y;
+              centerPositions[5] = currentEnd.z;
+              lineData.centerGeometry.attributes.position.needsUpdate = true;
+            }
+          }
+        }
+        
+        // Animate glow effects and glitches
+        connectionLines.forEach(lineData => {
+          if (lineData.isGlow) {
+            if (lineData.fadingOut) {
+              const fadeProgress = (Date.now() - lineData.fadeStartTime) / 2000;
+              lineData.material.opacity = Math.max(0, 0.5 * (1 - fadeProgress));
+              
+              if (fadeProgress >= 1) {
+                scene.remove(lineData.mesh);
+                lineData.material.dispose();
+                const index = connectionLines.indexOf(lineData);
+                if (index > -1) connectionLines.splice(index, 1);
+              }
+            } else {
+              // Pulse the glow
+              const pulse = Math.sin(time * 3) * 0.5 + 0.5;
+              lineData.material.opacity = 0.3 + pulse * 0.2;
+              lineData.mesh.scale.setScalar(1.5 + pulse * 0.15);
+              
+              // Sync position and rotation with target shard
+              if (lineData.targetShard) {
+                lineData.mesh.position.copy(lineData.targetShard.position);
+                lineData.mesh.rotation.copy(lineData.targetShard.rotation);
+                
+                // Glitch effect
+                lineData.glitchTimer += 0.016;
+                if (lineData.glitchTimer > 0.15) {
+                  lineData.glitchTimer = 0;
+                  lineData.glitchActive = !lineData.glitchActive;
+                }
+                
+                if (lineData.glitchActive) {
+                  // Random offset glitch
+                  lineData.targetShard.position.x += (Math.random() - 0.5) * 0.3;
+                  lineData.targetShard.position.y += (Math.random() - 0.5) * 0.3;
+                  lineData.targetShard.position.z += (Math.random() - 0.5) * 0.3;
+                  
+                  // Scale glitch
+                  const glitchScale = 1 + (Math.random() - 0.5) * 0.15;
+                  lineData.targetShard.scale.setScalar(glitchScale);
+                }
+              }
+            }
+          }
+        });
+        
       } else if (currentMode === 'project') {
         // Animate project worlds
         if (currentProjectId === 0) { // Neural AI
           projectObjects.forEach((obj, i) => {
-            if (obj.geometry.type === 'SphereGeometry') {
+            if (obj.geometry && obj.geometry.type === 'SphereGeometry') {
               const pulse = Math.sin(time * obj.userData.pulseSpeed + obj.userData.pulseOffset);
               obj.scale.setScalar(1 + pulse * 0.2);
               obj.material.opacity = 0.6 + pulse * 0.2;
@@ -735,10 +1161,12 @@
           });
         } else if (currentProjectId === 1) { // Web Dashboard
           projectObjects.forEach(panel => {
-            panel.userData.angle += panel.userData.rotationSpeed;
-            panel.position.x = Math.cos(panel.userData.angle) * 6;
-            panel.position.z = Math.sin(panel.userData.angle) * 6;
-            panel.lookAt(0, 0, 0);
+            if (panel.userData.angle !== undefined) {
+              panel.userData.angle += panel.userData.rotationSpeed;
+              panel.position.x = Math.cos(panel.userData.angle) * 6;
+              panel.position.z = Math.sin(panel.userData.angle) * 6;
+              panel.lookAt(0, 0, 0);
+            }
           });
         } else if (currentProjectId === 2) { // Game Engine
           projectObjects.forEach(voxel => {
@@ -746,19 +1174,23 @@
           });
         } else if (currentProjectId === 3) { // Data Viz
           projectObjects.forEach(bar => {
-            const pulse = Math.sin(time * bar.userData.pulseSpeed + bar.userData.pulseOffset);
-            const newHeight = bar.userData.originalHeight * (0.7 + pulse * 0.3);
-            bar.scale.y = newHeight / bar.userData.originalHeight;
-            bar.position.y = newHeight / 2 - 3;
-            bar.material.emissiveIntensity = 0.3 + pulse * 0.3;
+            if (bar.userData.originalHeight) {
+              const pulse = Math.sin(time * bar.userData.pulseSpeed + bar.userData.pulseOffset);
+              const newHeight = bar.userData.originalHeight * (0.7 + pulse * 0.3);
+              bar.scale.y = newHeight / bar.userData.originalHeight;
+              bar.position.y = newHeight / 2 - 3;
+              bar.material.emissiveIntensity = 0.3 + pulse * 0.3;
+            }
           });
         } else if (currentProjectId === 4) { // Blockchain
           projectObjects.forEach(block => {
-            block.rotation.x += block.userData.rotationSpeed;
-            block.rotation.y += block.userData.rotationSpeed * 0.7;
-            block.userData.angle += 0.001;
-            block.position.x = Math.cos(block.userData.angle) * block.userData.radius;
-            block.position.z = Math.sin(block.userData.angle) * block.userData.radius;
+            if (block.userData.rotationSpeed) {
+              block.rotation.x += block.userData.rotationSpeed;
+              block.rotation.y += block.userData.rotationSpeed * 0.7;
+              block.userData.angle += 0.001;
+              block.position.x = Math.cos(block.userData.angle) * block.userData.radius;
+              block.position.z = Math.sin(block.userData.angle) * block.userData.radius;
+            }
           });
         }
         
