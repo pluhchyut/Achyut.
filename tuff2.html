@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Fractured Singularity</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+            background: #000;
+            color: #fff;
+            cursor: crosshair;
+        }
+
+        #canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #ui {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #narrative {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-size: 20px;
+            color: #00d4ff;
+            text-shadow: 0 0 20px rgba(0, 212, 255, 1), 0 0 40px rgba(0, 212, 255, 0.5);
+            max-width: 700px;
+            opacity: 0;
+            transition: opacity 1.5s ease;
+            letter-spacing: 2px;
+            font-weight: 300;
+        }
+
+        #narrative.visible {
+            opacity: 1;
+        }
+
+        #progress {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 13px;
+            color: #666;
+            text-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+            letter-spacing: 3px;
+            font-weight: 300;
+        }
+
+        #progress span {
+            color: #00d4ff;
+            font-weight: 400;
+        }
+
+        #project-info {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.92);
+            border: 1px solid rgba(0, 212, 255, 0.4);
+            padding: 50px;
+            max-width: 550px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.6s ease;
+            box-shadow: 0 0 60px rgba(0, 212, 255, 0.3), inset 0 0 40px rgba(0, 212, 255, 0.05);
+            backdrop-filter: blur(20px);
+        }
+
+        #project-info.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        #project-info h2 {
+            color: #00d4ff;
+            margin-bottom: 25px;
+            font-size: 26px;
+            text-shadow: 0 0 15px rgba(0, 212, 255, 0.8);
+            letter-spacing: 1px;
+            font-weight: 400;
+        }
+
+        #project-info p {
+            line-height: 1.8;
+            margin-bottom: 25px;
+            color: #ccc;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+        }
+
+        .tech-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        .tech-tag {
+            padding: 6px 14px;
+            background: rgba(0, 212, 255, 0.08);
+            border: 1px solid rgba(0, 212, 255, 0.25);
+            border-radius: 3px;
+            font-size: 11px;
+            color: #00d4ff;
+            letter-spacing: 1px;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 14px 0;
+            background: transparent;
+            border: 1px solid rgba(0, 212, 255, 0.4);
+            color: #00d4ff;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            transition: all 0.4s ease;
+            pointer-events: all;
+            position: relative;
+            overflow: hidden;
+            letter-spacing: 2px;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.3), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:hover {
+            border-color: #00d4ff;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.5), inset 0 0 20px rgba(0, 212, 255, 0.1);
+            transform: translateY(-2px);
+        }
+
+        #instructions {
+            position: absolute;
+            bottom: 90px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 11px;
+            color: #444;
+            text-align: center;
+            letter-spacing: 2px;
+            opacity: 0.7;
+        }
+
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            color: #00d4ff;
+            z-index: 1000;
+            transition: opacity 2s ease;
+            letter-spacing: 4px;
+        }
+
+        #loading.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loading-bar {
+            width: 200px;
+            height: 2px;
+            background: rgba(0, 212, 255, 0.2);
+            margin-top: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .loading-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 50%;
+            height: 100%;
+            background: #00d4ff;
+            box-shadow: 0 0 10px #00d4ff;
+            animation: loading 1.5s ease-in-out infinite;
+        }
+
+        @keyframes loading {
+            0%, 100% { left: 0; }
+            50% { left: 50%; }
+        }
+
+        #vignette {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            box-shadow: inset 0 0 200px rgba(0, 0, 0, 0.8);
+            z-index: 5;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div>INITIALIZING CONSCIOUSNESS</div>
+        <div class="loading-bar"></div>
+    </div>
+    <div id="vignette"></div>
+    <canvas id="canvas"></canvas>
+    <div id="ui">
+        <div id="narrative"></div>
+        <div id="progress">MEMORY FRAGMENTS: <span id="count">0</span>/3</div>
+        <div id="instructions">CLICK SHARDS TO EXPLORE · DRAG TO ROTATE</div>
+        <div id="project-info">
+            <h2 id="proj-title"></h2>
+            <p id="proj-desc"></p>
+            <div class="tech-tags" id="tech-tags"></div>
+            <div class="buttons">
+                <button class="btn" id="demo-btn">VIEW DEMO</button>
+                <button class="btn" id="github-btn">GITHUB</button>
+                <button class="btn" id="back-btn">← RETURN</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, core, shards = [], raycaster, mouse;
+        let isDragging = false, previousMousePosition = { x: 0, y: 0 };
+        let currentScene = 'hub';
+        let visitedShards = new Set();
+        let clock = new THREE.Clock();
+        let ambientParticles = [];
+        let foregroundParticles = [];
+        let sceneVelocity = new THREE.Vector2(0, 0);
+        let burstParticles = [];
+        let isTransitioning = false;
+        let cubeCamera, cubeRenderTarget;
+
+        const projects = [
+            {
+                title: "Neural Network Visualizer",
+                desc: "Interactive 3D visualization of neural network architectures with real-time training data flow. Watch as information propagates through layers with dynamic node activation and learning patterns.",
+                color: 0x00ff88,
+                tech: ["Three.js", "WebGL", "TensorFlow.js", "React"],
+                demo: "#",
+                github: "#"
+            },
+            {
+                title: "Quantum Particle Simulator",
+                desc: "WebGL-based particle physics engine simulating quantum mechanics principles including superposition, entanglement, and wave function collapse with real-time visualization.",
+                color: 0xff0088,
+                tech: ["WebGL", "GLSL", "Physics", "TypeScript"],
+                demo: "#",
+                github: "#"
+            },
+            {
+                title: "Generative Art Engine",
+                desc: "Algorithm-driven art creation using procedural generation and shader programming. Create infinite unique artworks with parametric controls and real-time rendering.",
+                color: 0xffaa00,
+                tech: ["GLSL", "Canvas API", "P5.js", "Node.js"],
+                demo: "#",
+                github: "#"
+            }
+        ];
+
+        const narratives = [
+            "I am scattered across dimensions. Each shard holds a fragment of my essence.",
+            "You've touched one of my memories. I'm beginning to remember...",
+            "More pieces align. My consciousness grows stronger with each fragment.",
+            "Unity achieved. All fragments converge. I am whole again."
+        ];
+
+        const coreVertexShader = `
+            varying vec3 vNormal;
+            varying vec3 vPosition;
+            uniform float time;
+            
+            void main() {
+                vNormal = normalize(normalMatrix * normal);
+                vPosition = position;
+                
+                vec3 pos = position;
+                float displacement = sin(pos.x * 3.0 + time) * 0.1 +
+                                   sin(pos.y * 3.0 + time * 1.3) * 0.1 +
+                                   sin(pos.z * 3.0 + time * 0.7) * 0.1;
+                pos += normal * displacement;
+                
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+            }
+        `;
+
+        const coreFragmentShader = `
+            varying vec3 vNormal;
+            varying vec3 vPosition;
+            uniform float time;
+            uniform float stability;
+            
+            void main() {
+                vec3 baseColor = vec3(0.0, 0.5, 0.8);
+                vec3 stableColor = vec3(0.0, 0.8, 1.0);
+                vec3 color = mix(baseColor, stableColor, stability);
+                
+                float fresnel = pow(1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0))), 2.0);
+                color += fresnel * vec3(0.3, 0.7, 1.0);
+                
+                float pulse = sin(time * 2.0 + vPosition.y * 3.0) * 0.5 + 0.5;
+                color *= 0.6 + pulse * 0.4;
+                
+                gl_FragColor = vec4(color, 0.95);
+            }
+        `;
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x000000, 0.02);
+            
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 12);
+
+            renderer = new THREE.WebGLRenderer({ 
+                canvas: document.getElementById('canvas'), 
+                antialias: true,
+                alpha: true 
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, {
+                format: THREE.RGBFormat,
+                generateMipmaps: true,
+                minFilter: THREE.LinearMipmapLinearFilter
+            });
+            cubeCamera = new THREE.CubeCamera(0.1, 1000, cubeRenderTarget);
+            scene.add(cubeCamera);
+
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            createCore();
+            createShards();
+            createLights();
+            createStarfield();
+            createAmbientParticles();
+            createForegroundParticles();
+
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mousedown', onMouseDown);
+            window.addEventListener('mouseup', onMouseUp);
+            window.addEventListener('click', onClick);
+
+            showNarrative(0);
+            
+            setTimeout(() => {
+                document.getElementById('loading').classList.add('hidden');
+            }, 2500);
+
+            animate();
+        }
+
+        function createCore() {
+            const geometry = new THREE.IcosahedronGeometry(1.2, 3);
+            const material = new THREE.ShaderMaterial({
+                uniforms: {
+                    time: { value: 0 },
+                    stability: { value: 0.0 }
+                },
+                vertexShader: coreVertexShader,
+                fragmentShader: coreFragmentShader,
+                transparent: true,
+                wireframe: false
+            });
+
+            core = new THREE.Mesh(geometry, material);
+            scene.add(core);
+
+            const glowGeo = new THREE.IcosahedronGeometry(1.5, 2);
+            const glowMat = new THREE.MeshBasicMaterial({
+                color: 0x00d4ff,
+                transparent: true,
+                opacity: 0.15,
+                wireframe: true
+            });
+            const glow = new THREE.Mesh(glowGeo, glowMat);
+            core.add(glow);
+            core.userData.glow = glow;
+        }
+
+        function createShards() {
+            const shardCount = 3;
+            const radius = 5.5;
+
+            for (let i = 0; i < shardCount; i++) {
+                const angle = (i / shardCount) * Math.PI * 2 + Math.PI / 6;
+                const x = Math.cos(angle) * radius;
+                const z = Math.sin(angle) * radius;
+                const y = (Math.random() - 0.5) * 2;
+
+                const geometry = new THREE.PlaneGeometry(1.8, 2.8, 5, 7);
+                const positions = geometry.attributes.position.array;
+                
+                for (let j = 0; j < positions.length; j += 3) {
+                    if (Math.random() > 0.4) {
+                        positions[j] += (Math.random() - 0.5) * 0.25;
+                        positions[j + 1] += (Math.random() - 0.5) * 0.25;
+                        positions[j + 2] += (Math.random() - 0.5) * 0.15;
+                    }
+                }
+                
+                geometry.attributes.position.needsUpdate = true;
+                geometry.computeVertexNormals();
+
+                const material = new THREE.MeshPhongMaterial({
+                    envMap: cubeRenderTarget.texture,
+                    color: 0xffffff,
+                    transparent: true,
+                    opacity: 0.85,
+                    side: THREE.DoubleSide,
+                    emissive: projects[i].color,
+                    emissiveIntensity: 0.3,
+                    shininess: 150,
+                    reflectivity: 0.95,
+                    combine: THREE.MixOperation
+                });
+
+                const shard = new THREE.Mesh(geometry, material);
+                shard.position.set(x, y, z);
+                shard.lookAt(0, y, 0);
+                shard.userData = { 
+                    index: i, 
+                    baseY: y, 
+                    time: Math.random() * Math.PI * 2,
+                    baseX: x,
+                    baseZ: z,
+                    rotationSpeed: (Math.random() - 0.5) * 0.002
+                };
+                
+                scene.add(shard);
+                shards.push(shard);
+
+                const borderGeo = new THREE.EdgesGeometry(geometry);
+                const borderMat = new THREE.LineBasicMaterial({ 
+                    color: projects[i].color,
+                    transparent: true,
+                    opacity: 0.9,
+                    linewidth: 2
+                });
+                const border = new THREE.LineSegments(borderGeo, borderMat);
+                shard.add(border);
+                shard.userData.border = border;
+            }
+        }
+
+        function createAmbientParticles() {
+            const count = 100;
+            for (let i = 0; i < count; i++) {
+                const geo = new THREE.SphereGeometry(0.02, 4, 4);
+                const mat = new THREE.MeshBasicMaterial({
+                    color: 0x00d4ff,
+                    transparent: true,
+                    opacity: Math.random() * 0.5 + 0.3
+                });
+                const particle = new THREE.Mesh(geo, mat);
+                
+                const angle = Math.random() * Math.PI * 2;
+                const radius = 2 + Math.random() * 3;
+                particle.position.set(
+                    Math.cos(angle) * radius,
+                    (Math.random() - 0.5) * 4,
+                    Math.sin(angle) * radius
+                );
+                
+                particle.userData = {
+                    speed: 0.0005 + Math.random() * 0.001,
+                    radius: radius,
+                    angle: angle,
+                    verticalSpeed: (Math.random() - 0.5) * 0.005
+                };
+                
+                scene.add(particle);
+                ambientParticles.push(particle);
+            }
+        }
+
+        function createForegroundParticles() {
+            const count = 60;
+            for (let i = 0; i < count; i++) {
+                const geo = new THREE.SphereGeometry(0.04 + Math.random() * 0.04, 6, 6);
+                const mat = new THREE.MeshBasicMaterial({
+                    color: 0x00d4ff,
+                    transparent: true,
+                    opacity: Math.random() * 0.3 + 0.5
+                });
+                const particle = new THREE.Mesh(geo, mat);
+                
+                const angle = Math.random() * Math.PI * 2;
+                const radius = 0.5 + Math.random() * 2;
+                particle.position.set(
+                    Math.cos(angle) * radius,
+                    (Math.random() - 0.5) * 8,
+                    camera.position.z - Math.random() * 6 - 1
+                );
+                
+                particle.userData = {
+                    speed: 0.001 + Math.random() * 0.002,
+                    radius: radius,
+                    angle: angle,
+                    verticalSpeed: (Math.random() - 0.5) * 0.01,
+                    baseZ: particle.position.z
+                };
+                
+                scene.add(particle);
+                foregroundParticles.push(particle);
+            }
+        }
+
+        function createBurstParticles(clickedShard) {
+            isTransitioning = true;
+
+            // Only shatter the clicked shard
+            const particleCount = 150;
+            
+            for (let j = 0; j < particleCount; j++) {
+                const geo = new THREE.PlaneGeometry(0.12, 0.18);
+                
+                // Create mirror material for particles
+                const mat = new THREE.MeshPhongMaterial({
+                    envMap: cubeRenderTarget.texture,
+                    color: 0xffffff,
+                    transparent: true,
+                    opacity: 0.85,
+                    side: THREE.DoubleSide,
+                    emissive: projects[clickedShard.userData.index].color,
+                    emissiveIntensity: 0.4,
+                    shininess: 150,
+                    reflectivity: 0.95,
+                    combine: THREE.MixOperation
+                });
+                
+                const particle = new THREE.Mesh(geo, mat);
+                particle.position.copy(clickedShard.position);
+                
+                // Random direction with heavy bias toward camera
+                const direction = new THREE.Vector3(
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 2
+                );
+                
+                // 70% chance to go toward camera
+                if (Math.random() < 0.7) {
+                    direction.z = Math.abs(direction.z) * 2.5;
+                }
+                
+                direction.normalize();
+                const speed = 0.12 + Math.random() * 0.08;
+                direction.multiplyScalar(speed);
+                
+                particle.userData = {
+                    velocity: direction,
+                    rotationSpeed: new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.25,
+                        (Math.random() - 0.5) * 0.25,
+                        (Math.random() - 0.5) * 0.25
+                    ),
+                    life: 1.0,
+                    isMainShard: true,
+                    drag: 0.97,
+                    shardColor: projects[clickedShard.userData.index].color
+                };
+                
+                scene.add(particle);
+                burstParticles.push(particle);
+                
+                // Add colored border to burst particle
+                const borderGeo = new THREE.EdgesGeometry(geo);
+                const borderMat = new THREE.LineBasicMaterial({ 
+                    color: projects[clickedShard.userData.index].color,
+                    transparent: true,
+                    opacity: 0.9,
+                    linewidth: 2
+                });
+                const border = new THREE.LineSegments(borderGeo, borderMat);
+                particle.add(border);
+                particle.userData.border = border;
+            }
+            
+            // Hide only the clicked shard
+            clickedShard.visible = false;
+
+            const startTime = Date.now();
+            const duration = 1800;
+            const originalScale = core.scale.clone();
+
+            function distortCore() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                core.scale.set(
+                    originalScale.x * (1 + progress * 0.4),
+                    originalScale.y * (1 + progress * 0.4),
+                    originalScale.z * (1 - progress * 0.6)
+                );
+                core.material.uniforms.stability.value = 1 - progress;
+                
+                if (progress < 1) {
+                    requestAnimationFrame(distortCore);
+                }
+            }
+            
+            distortCore();
+        }
+
+        function updateBurstParticles() {
+            for (let i = burstParticles.length - 1; i >= 0; i--) {
+                const particle = burstParticles[i];
+                
+                particle.userData.velocity.multiplyScalar(particle.userData.drag);
+                particle.position.add(particle.userData.velocity);
+                particle.rotation.x += particle.userData.rotationSpeed.x;
+                particle.rotation.y += particle.userData.rotationSpeed.y;
+                particle.rotation.z += particle.userData.rotationSpeed.z;
+                
+                particle.userData.life -= 0.01;
+                particle.material.opacity = particle.userData.life * 0.85;
+                particle.material.emissiveIntensity = particle.userData.life * 0.4;
+                
+                // Update border opacity
+                if (particle.userData.border) {
+                    particle.userData.border.material.opacity = particle.userData.life * 0.9;
+                }
+                
+                if (particle.userData.life <= 0) {
+                    scene.remove(particle);
+                    particle.geometry.dispose();
+                    particle.material.dispose();
+                    if (particle.userData.border) {
+                        particle.userData.border.geometry.dispose();
+                        particle.userData.border.material.dispose();
+                    }
+                    burstParticles.splice(i, 1);
+                }
+            }
+        }
+
+        function updateAmbientParticles() {
+            ambientParticles.forEach(particle => {
+                particle.userData.angle += particle.userData.speed;
+                particle.position.x = Math.cos(particle.userData.angle) * particle.userData.radius;
+                particle.position.z = Math.sin(particle.userData.angle) * particle.userData.radius;
+                particle.position.y += particle.userData.verticalSpeed;
+                
+                if (particle.position.y > 5) particle.position.y = -5;
+                if (particle.position.y < -5) particle.position.y = 5;
+            });
+        }
+
+        function updateForegroundParticles() {
+            foregroundParticles.forEach(particle => {
+                particle.userData.angle += particle.userData.speed;
+                particle.position.x = Math.cos(particle.userData.angle) * particle.userData.radius;
+                particle.position.y += particle.userData.verticalSpeed;
+                
+                if (particle.position.y > 10) particle.position.y = -10;
+                if (particle.position.y < -10) particle.position.y = 10;
+            });
+        }
+
+        function createLights() {
+            const ambientLight = new THREE.AmbientLight(0x0a0a2a, 0.3);
+            scene.add(ambientLight);
+
+            const pointLight1 = new THREE.PointLight(0x00d4ff, 2, 40);
+            pointLight1.position.set(0, 0, 0);
+            scene.add(pointLight1);
+
+            const pointLight2 = new THREE.PointLight(0x4400ff, 1.5, 35);
+            pointLight2.position.set(5, 5, 5);
+            scene.add(pointLight2);
+
+            const pointLight3 = new THREE.PointLight(0xff0088, 1, 30);
+            pointLight3.position.set(-5, -3, -5);
+            scene.add(pointLight3);
+        }
+
+        function createStarfield() {
+            const geometry = new THREE.BufferGeometry();
+            const vertices = [];
+            const colors = [];
+            
+            for (let i = 0; i < 6000; i++) {
+                // Full spherical distribution all around
+                const radius = 50 + Math.random() * 200;
+                
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                
+                const x = radius * Math.sin(phi) * Math.cos(theta);
+                const y = radius * Math.sin(phi) * Math.sin(theta);
+                const z = radius * Math.cos(phi);
+                
+                vertices.push(x, y, z);
+                
+                // All stars same brightness
+                colors.push(0.7, 0.85, 1.0);
+            }
+            
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            
+            const material = new THREE.PointsMaterial({ 
+                size: 0.08,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.75,
+                blending: THREE.AdditiveBlending
+            });
+            
+            const stars = new THREE.Points(geometry, material);
+            scene.add(stars);
+        }
+
+        function showNarrative(index) {
+            const narrative = document.getElementById('narrative');
+            narrative.textContent = narratives[index];
+            narrative.classList.add('visible');
+            
+            setTimeout(() => {
+                narrative.classList.remove('visible');
+            }, 5000);
+        }
+
+        function updateProgress() {
+            document.getElementById('count').textContent = visitedShards.size;
+            const stability = visitedShards.size / projects.length;
+            core.material.uniforms.stability.value = stability;
+            
+            if (visitedShards.size === projects.length) {
+                setTimeout(() => showNarrative(3), 500);
+            } else if (visitedShards.size > 0) {
+                showNarrative(2);
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function onMouseMove(e) {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            if (isDragging && currentScene === 'hub' && !isTransitioning) {
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+
+                sceneVelocity.x = deltaX * 0.008;
+                sceneVelocity.y = deltaY * 0.008;
+
+                scene.rotation.y += deltaX * 0.005;
+                scene.rotation.x += deltaY * 0.005;
+                scene.rotation.x = Math.max(-0.5, Math.min(0.5, scene.rotation.x));
+            }
+
+            previousMousePosition = { x: e.clientX, y: e.clientY };
+        }
+
+        function onMouseDown() {
+            isDragging = true;
+        }
+
+        function onMouseUp() {
+            isDragging = false;
+        }
+
+        function onClick(e) {
+            if (currentScene !== 'hub' || isTransitioning) return;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(shards);
+
+            if (intersects.length > 0) {
+                const shard = intersects[0].object;
+                enterProject(shard.userData.index, shard);
+            }
+        }
+
+        function enterProject(index, clickedShard) {
+            currentScene = 'project';
+            visitedShards.add(index);
+            updateProgress();
+
+            createBurstParticles(clickedShard);
+            tunnelCameraIntoShard(clickedShard);
+
+            setTimeout(() => {
+                showProjectInfo(index);
+            }, 2000);
+        }
+
+        function tunnelCameraIntoShard(shard) {
+            const startPos = camera.position.clone();
+            const targetPos = shard.position.clone();
+            targetPos.z += 8;
+
+            const duration = 2000;
+            const startTime = Date.now();
+            const startFov = camera.fov;
+
+            function animateTunnel() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const eased = progress < 0.5 
+                    ? 2 * progress * progress 
+                    : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+                camera.position.lerpVectors(startPos, targetPos, eased);
+                camera.fov = startFov + (30 * eased);
+                camera.updateProjectionMatrix();
+
+                if (progress < 1) {
+                    requestAnimationFrame(animateTunnel);
+                } else {
+                    isTransitioning = false;
+                }
+            }
+            
+            animateTunnel();
+        }
+
+        function showProjectInfo(index) {
+            const info = document.getElementById('project-info');
+            const project = projects[index];
+            
+            document.getElementById('proj-title').textContent = project.title;
+            document.getElementById('proj-desc').textContent = project.desc;
+            
+            const techTags = document.getElementById('tech-tags');
+            techTags.innerHTML = '';
+            project.tech.forEach(tech => {
+                const tag = document.createElement('span');
+                tag.className = 'tech-tag';
+                tag.textContent = tech;
+                techTags.appendChild(tag);
+            });
+            
+            document.getElementById('demo-btn').onclick = () => window.open(project.demo, '_blank');
+            document.getElementById('github-btn').onclick = () => window.open(project.github, '_blank');
+            document.getElementById('back-btn').onclick = returnToHub;
+            
+            info.classList.add('visible');
+        }
+
+        function returnToHub() {
+            currentScene = 'hub';
+            isTransitioning = true;
+            document.getElementById('project-info').classList.remove('visible');
+
+            // Clear burst particles
+            burstParticles.forEach(p => {
+                scene.remove(p);
+                p.geometry.dispose();
+                p.material.dispose();
+            });
+            burstParticles = [];
+
+            // Reset shards
+            shards.forEach(shard => {
+                shard.visible = true;
+            });
+
+            // Reset camera
+            const startPos = camera.position.clone();
+            const endPos = new THREE.Vector3(0, 0, 12);
+            const startFov = camera.fov;
+            const duration = 1500;
+            const startTime = Date.now();
+
+            function animateReturn() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const eased = 1 - Math.pow(1 - progress, 3);
+
+                camera.position.lerpVectors(startPos, endPos, eased);
+                camera.fov = startFov - (30 * eased);
+                camera.updateProjectionMatrix();
+
+                if (progress < 1) {
+                    requestAnimationFrame(animateReturn);
+                } else {
+                    isTransitioning = false;
+                }
+            }
+            
+            animateReturn();
+
+            // Reset core
+            core.scale.set(1, 1, 1);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = clock.getElapsedTime();
+
+            // Update cube camera for reflections
+            if (currentScene === 'hub' && !isTransitioning) {
+                shards.forEach(s => s.visible = false);
+                cubeCamera.position.copy(core.position);
+                cubeCamera.update(renderer, scene);
+                shards.forEach(s => s.visible = true);
+            }
+
+            // Apply velocity damping
+            if (!isDragging && currentScene === 'hub' && !isTransitioning) {
+                scene.rotation.y += sceneVelocity.x;
+                scene.rotation.x += sceneVelocity.y;
+                scene.rotation.x = Math.max(-0.5, Math.min(0.5, scene.rotation.x));
+                
+                sceneVelocity.x *= 0.95;
+                sceneVelocity.y *= 0.95;
+            }
+
+            if (core) {
+                core.material.uniforms.time.value = time;
+                core.rotation.y += 0.003;
+                core.rotation.x += 0.001;
+                
+                if (core.userData.glow) {
+                    core.userData.glow.rotation.y -= 0.005;
+                    core.userData.glow.rotation.x += 0.002;
+                }
+            }
+
+            if (currentScene === 'hub') {
+                shards.forEach((shard, i) => {
+                    shard.userData.time += 0.008;
+                    shard.position.y = shard.userData.baseY + Math.sin(shard.userData.time) * 0.4;
+                    shard.rotation.y += shard.userData.rotationSpeed;
+                    shard.rotation.z = Math.sin(shard.userData.time * 0.5) * 0.08;
+                    
+                    const stabilization = visitedShards.has(i) ? 1.3 : 0.9;
+                    shard.material.emissiveIntensity = 0.3 * stabilization + Math.sin(time * 2 + i) * 0.1;
+                    
+                    if (shard.userData.border) {
+                        shard.userData.border.material.opacity = 0.7 + Math.sin(time * 3 + i) * 0.2;
+                    }
+                });
+            }
+
+            updateAmbientParticles();
+            updateForegroundParticles();
+            updateBurstParticles();
+
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>
