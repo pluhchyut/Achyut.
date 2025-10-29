@@ -1,4 +1,8 @@
-<!DOCTYPE html>
+// Create debris shards (smaller pieces for depth)
+    for (let i = 0; i < 25; i++) {
+      const geometry = createShardGeometry();
+      const material = new THREE.MeshPhysicalMaterial({
+        metal<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -16,12 +20,16 @@
       background: #fff;
       overflow: hidden;
       cursor: default;
+      user-select: none;
     }
     
     #canvas {
       display: block;
       width: 100vw;
       height: 100vh;
+      position: fixed;
+      top: 0;
+      left: 0;
     }
     
     .label {
@@ -297,7 +305,7 @@
         metalness: 1,
         roughness: 0.05,
         transmission: 0.1,
-        thickness: 0.2,
+        thickness: 0.8, // Increased depth for shards
         reflectivity: 1,
         clearcoat: 1,
         clearcoatRoughness: 0.05,
@@ -351,7 +359,7 @@
         metalness: 1,
         roughness: 0.08,
         transmission: 0.15,
-        thickness: 0.1,
+        thickness: 0.5, // Increased depth
         reflectivity: 1,
         clearcoat: 0.8,
         clearcoatRoughness: 0.1,
@@ -368,7 +376,7 @@
       const angle = (i / 25) * Math.PI * 2;
       const radius = 6 + Math.random() * 10;
       debris.position.x = Math.cos(angle) * radius;
-      debris.position.y = (Math.random() - 0.5) * 12;
+      debris.position.y = Math.max(-4, (Math.random() - 0.5) * 12); // Prevent spawning below floor
       debris.position.z = Math.sin(angle) * radius;
       
       debris.rotation.x = Math.random() * Math.PI * 2;
@@ -681,7 +689,7 @@
           debris.visible = true;
         });
         
-        scene.fog.color.setHex(0x000000);
+        scene.fog.color.setHex(0xffffff);
         
         // Reset camera to initial spherical position
         cameraRotation.theta = 0;
@@ -704,6 +712,10 @@
     let hoveredDebris = null;
     let connectionLines = [];
     let lineAnimations = [];
+    let draggedObject = null;
+    let dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    let dragOffset = new THREE.Vector3();
+    let dragConnections = [];
     
     const label = document.getElementById('label');
     const labelName = document.getElementById('label-name');
@@ -741,7 +753,7 @@
       let currentDebris = hoveredDebris;
       const processedDebris = new Set([hoveredDebris]);
       
-      const connectionPath = [];
+      const waypoints = [hoveredDebris];
       let targetShard = null;
       
       // Build the path
@@ -756,26 +768,73 @@
         const distToDebris = nearestDebris ? currentDebris.position.distanceTo(nearestDebris.position) : Infinity;
         
         if (distToShard < distToDebris || !nearestDebris) {
-          connectionPath.push({
-            start: currentDebris.position.clone(),
-            end: nearestShard.position.clone(),
-            debris: currentDebris
-          });
+          waypoints.push(nearestShard);
           targetShard = nearestShard;
           break;
         } else {
-          connectionPath.push({
-            start: currentDebris.position.clone(),
-            end: nearestDebris.position.clone(),
-            debris: currentDebris
-          });
-          
+          waypoints.push(nearestDebris);
           processedDebris.add(nearestDebris);
           currentDebris = nearestDebris;
         }
       }
       
-      // Create glow for target shard
+      // Create white dots at each waypoint (except the last one which is the shard)
+      waypoints.forEach((waypoint, index) => {
+        if (index < waypoints.length - 1) { // Don't add dot to final shard
+          const dotGeometry = new THREE.SphereGeometry(0.15, 8, 8);
+          const dotMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0
+          });
+          const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+          dot.position.copy(waypoint.position);
+          scene.add(dot);
+          
+          connectionLines.push({
+            isDot: true,
+            mesh: dot,
+            material: dotMaterial,
+            waypoint: waypoint,
+            waypointIndex: index,
+            fadingOut: false,
+            fadeStartTime: 0
+          });
+        }
+      });
+      
+      // Create white lines connecting all dots
+      for (let i = 0; i < waypoints.length - 1; i++) {
+        const startWaypoint = waypoints[i];
+        const endWaypoint = waypoints[i + 1];
+        
+        const dotLineGeometry = new THREE.BufferGeometry().setFromPoints([
+          startWaypoint.position.clone(),
+          endWaypoint.position.clone()
+        ]);
+        const dotLineMaterial = new THREE.LineBasicMaterial({ 
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0,
+          linewidth: 2
+        });
+        
+        const dotLine = new THREE.Line(dotLineGeometry, dotLineMaterial);
+        scene.add(dotLine);
+        
+        connectionLines.push({
+          isDotLine: true,
+          line: dotLine,
+          geometry: dotLineGeometry,
+          material: dotLineMaterial,
+          startWaypoint: startWaypoint,
+          endWaypoint: endWaypoint,
+          fadingOut: false,
+          fadeStartTime: 0
+        });
+      }
+      
+      // Create glow for target shard with white outline
       if (targetShard) {
         const glowGeometry = targetShard.geometry.clone();
         const glowMaterial = new THREE.MeshBasicMaterial({
@@ -804,56 +863,51 @@
         });
       }
       
-      // Create animated lines for each segment (with outline effect)
-      connectionPath.forEach((segment, index) => {
-        // Create white outline (thicker, drawn first)
-        const outlinePoints = [segment.start, segment.start.clone()];
-        const outlineGeometry = new THREE.BufferGeometry().setFromPoints(outlinePoints);
-        const outlineMaterial = new THREE.LineBasicMaterial({ 
-          color: 0xffffff,
-          transparent: true,
-          opacity: 0.9,
-          linewidth: 12
-        });
-        
-        const outlineLine = new THREE.Line(outlineGeometry, outlineMaterial);
-        scene.add(outlineLine);
-        
-        // Create black center line (thinner, drawn on top)
-        const centerPoints = [segment.start, segment.start.clone()];
-        const centerGeometry = new THREE.BufferGeometry().setFromPoints(centerPoints);
-        const centerMaterial = new THREE.LineBasicMaterial({ 
-          color: 0x000000,
-          transparent: true,
-          opacity: 0.9,
-          linewidth: 6
-        });
-        
-        const centerLine = new THREE.Line(centerGeometry, centerMaterial);
-        scene.add(centerLine);
-        
-        const lineData = {
-          outlineLine: outlineLine,
-          centerLine: centerLine,
-          outlineGeometry: outlineGeometry,
-          centerGeometry: centerGeometry,
-          outlineMaterial: outlineMaterial,
-          centerMaterial: centerMaterial,
-          start: segment.start,
-          end: segment.end,
-          debris: segment.debris,
-          progress: 0,
-          delay: index * 0.2,
-          startTime: Date.now(),
-          fadingOut: false,
-          fadeStartTime: 0,
-          segmentIndex: index,
-          totalSegments: connectionPath.length
-        };
-        
-        connectionLines.push(lineData);
-        lineAnimations.push(lineData);
+      // Create one continuous line with all waypoints
+      const startPos = waypoints[0].position.clone();
+      
+      // Create black outline (thicker)
+      const outlinePoints = [startPos];
+      const outlineGeometry = new THREE.BufferGeometry().setFromPoints(outlinePoints);
+      const outlineMaterial = new THREE.LineBasicMaterial({ 
+        color: 0x000000,
+        transparent: true,
+        opacity: 0.9,
+        linewidth: 12
       });
+      
+      const outlineLine = new THREE.Line(outlineGeometry, outlineMaterial);
+      scene.add(outlineLine);
+      
+      // Create white center line (thinner)
+      const centerPoints = [startPos];
+      const centerGeometry = new THREE.BufferGeometry().setFromPoints(centerPoints);
+      const centerMaterial = new THREE.LineBasicMaterial({ 
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.9,
+        linewidth: 6
+      });
+      
+      const centerLine = new THREE.Line(centerGeometry, centerMaterial);
+      scene.add(centerLine);
+      
+      const lineData = {
+        outlineLine: outlineLine,
+        centerLine: centerLine,
+        outlineGeometry: outlineGeometry,
+        centerGeometry: centerGeometry,
+        outlineMaterial: outlineMaterial,
+        centerMaterial: centerMaterial,
+        waypoints: waypoints,
+        progress: 0,
+        startTime: Date.now(),
+        fadingOut: false,
+        fadeStartTime: 0
+      };
+      
+      connectionLines.push(lineData);
+      lineAnimations.push(lineData);
     }
     
     // Camera control variables
@@ -875,13 +929,77 @@
     
     window.addEventListener('mousedown', (event) => {
       if (currentMode === 'void') {
-        isDragging = true;
-        previousMousePosition = { x: event.clientX, y: event.clientY };
-        document.body.style.cursor = 'grabbing';
+        raycaster.setFromCamera(mouse, camera);
+        
+        // Check if clicking on a shard or debris
+        const shardIntersects = raycaster.intersectObjects(shardMeshes);
+        const debrisIntersects = raycaster.intersectObjects(debrisShards);
+        
+        if (shardIntersects.length > 0) {
+          draggedObject = shardIntersects[0].object;
+          draggedObject.userData.isDragging = true;
+          draggedObject.userData.originalPosition = draggedObject.position.clone();
+          
+          // Find 3-5 random debris pieces to pull it back
+          const numConnections = 3 + Math.floor(Math.random() * 3);
+          dragConnections = [];
+          
+          const shuffledDebris = [...debrisShards].sort(() => Math.random() - 0.5);
+          for (let i = 0; i < Math.min(numConnections, shuffledDebris.length); i++) {
+            dragConnections.push(shuffledDebris[i]);
+          }
+          
+          // Calculate intersection with drag plane
+          dragPlane.setFromNormalAndCoplanarPoint(
+            camera.getWorldDirection(dragPlane.normal),
+            draggedObject.position
+          );
+          
+          const intersection = new THREE.Vector3();
+          raycaster.ray.intersectPlane(dragPlane, intersection);
+          dragOffset.copy(draggedObject.position).sub(intersection);
+          
+          label.classList.remove('visible');
+          event.preventDefault();
+        } else if (debrisIntersects.length > 0) {
+          draggedObject = debrisIntersects[0].object;
+          draggedObject.userData.isDragging = true;
+          draggedObject.userData.originalPosition = draggedObject.position.clone();
+          
+          // Find 3-5 random debris pieces to pull it back
+          const numConnections = 3 + Math.floor(Math.random() * 3);
+          dragConnections = [];
+          
+          const shuffledDebris = [...debrisShards].filter(d => d !== draggedObject).sort(() => Math.random() - 0.5);
+          for (let i = 0; i < Math.min(numConnections, shuffledDebris.length); i++) {
+            dragConnections.push(shuffledDebris[i]);
+          }
+          
+          // Calculate intersection with drag plane
+          dragPlane.setFromNormalAndCoplanarPoint(
+            camera.getWorldDirection(dragPlane.normal),
+            draggedObject.position
+          );
+          
+          const intersection = new THREE.Vector3();
+          raycaster.ray.intersectPlane(dragPlane, intersection);
+          dragOffset.copy(draggedObject.position).sub(intersection);
+          
+          event.preventDefault();
+        } else {
+          isDragging = true;
+          previousMousePosition = { x: event.clientX, y: event.clientY };
+          document.body.style.cursor = 'grabbing';
+        }
       }
     });
     
     window.addEventListener('mouseup', () => {
+      if (draggedObject) {
+        draggedObject.userData.isDragging = false;
+        draggedObject = null;
+        dragConnections = [];
+      }
       isDragging = false;
       document.body.style.cursor = 'default';
     });
@@ -900,7 +1018,24 @@
       mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
       
       if (currentMode === 'void') {
-        if (isDragging) {
+        // Handle object dragging
+        if (draggedObject) {
+          raycaster.setFromCamera(mouse, camera);
+          const intersection = new THREE.Vector3();
+          raycaster.ray.intersectPlane(dragPlane, intersection);
+          draggedObject.position.copy(intersection.add(dragOffset));
+          
+          // Add subtle rotation while dragging
+          const dragSpeed = new THREE.Vector3().subVectors(
+            draggedObject.position,
+            draggedObject.userData.lastDragPosition || draggedObject.position
+          ).length();
+          
+          draggedObject.rotation.y += dragSpeed * 0.5;
+          draggedObject.rotation.x += dragSpeed * 0.3;
+          
+          draggedObject.userData.lastDragPosition = draggedObject.position.clone();
+        } else if (isDragging) {
           const deltaX = event.clientX - previousMousePosition.x;
           const deltaY = event.clientY - previousMousePosition.y;
           
@@ -919,73 +1054,71 @@
         keyLight.position.x = 8 + mouse.x * 5;
         keyLight.position.z = 8 + mouse.y * 5;
         
-        raycaster.setFromCamera(mouse, camera);
-        
-        // Check for shard intersections
-        const shardIntersects = raycaster.intersectObjects(shardMeshes);
-        
-        if (hoveredShard && (!shardIntersects.length || shardIntersects[0].object !== hoveredShard)) {
-          hoveredShard.userData.hovered = false;
-          hoveredShard.material.emissive.setHex(0x000000);
-          hoveredShard.material.emissiveIntensity = 0;
-          hoveredShard = null;
-          label.classList.remove('visible');
-        }
-        
-        if (shardIntersects.length > 0 && !isDragging) {
-          const shard = shardIntersects[0].object;
-          if (shard !== hoveredShard) {
-            hoveredShard = shard;
-            shard.userData.hovered = true;
-            const project = projects[shard.userData.projectId];
-            shard.material.emissive.setHex(project.color);
-            shard.material.emissiveIntensity = 0.8;
-            
-            labelName.textContent = project.name;
-            labelDesc.textContent = project.desc;
-            
-            const vector = new THREE.Vector3();
-            shard.getWorldPosition(vector);
-            vector.project(camera);
-            
-            const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
-            const y = (-(vector.y * 0.5) + 0.5) * window.innerHeight;
-            
-            label.style.left = x + 'px';
-            label.style.top = (y - 80) + 'px';
-            label.classList.add('visible');
+        if (!draggedObject && !isDragging) {
+          raycaster.setFromCamera(mouse, camera);
+          
+          // Check for shard intersections
+          const shardIntersects = raycaster.intersectObjects(shardMeshes);
+          
+          if (hoveredShard && (!shardIntersects.length || shardIntersects[0].object !== hoveredShard)) {
+            hoveredShard.userData.hovered = false;
+            hoveredShard.material.emissive.setHex(0x000000);
+            hoveredShard.material.emissiveIntensity = 0;
+            hoveredShard = null;
+            label.classList.remove('visible');
           }
-        }
-        
-        // Check for debris intersections
-        const debrisIntersects = raycaster.intersectObjects(debrisShards);
-        
-        if (hoveredDebris && (!debrisIntersects.length || debrisIntersects[0].object !== hoveredDebris)) {
-          hoveredDebris = null;
-          label.classList.remove('visible');
-          createConnectionLines(); // Clear lines
-        }
-        
-        if (debrisIntersects.length > 0 && !isDragging) {
-          const debris = debrisIntersects[0].object;
-          if (debris !== hoveredDebris) {
-            hoveredDebris = debris;
-            createConnectionLines();
-            
-            // Show label for debris
-            labelName.textContent = 'DEBRIS FRAGMENT';
-            labelDesc.textContent = 'Trace Connection';
-            
-            const vector = new THREE.Vector3();
-            debris.getWorldPosition(vector);
-            vector.project(camera);
-            
-            const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
-            const y = (-(vector.y * 0.5) + 0.5) * window.innerHeight;
-            
-            label.style.left = x + 'px';
-            label.style.top = (y - 80) + 'px';
-            label.classList.add('visible');
+          
+          if (shardIntersects.length > 0) {
+            const shard = shardIntersects[0].object;
+            if (shard !== hoveredShard) {
+              hoveredShard = shard;
+              shard.userData.hovered = true;
+              const project = projects[shard.userData.projectId];
+              shard.material.emissive.setHex(project.color);
+              shard.material.emissiveIntensity = 0.8;
+              
+              labelName.textContent = project.name;
+              labelDesc.textContent = project.desc;
+              
+              const vector = new THREE.Vector3();
+              shard.getWorldPosition(vector);
+              vector.project(camera);
+              
+              const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+              const y = (-(vector.y * 0.5) + 0.5) * window.innerHeight;
+              
+              label.style.left = x + 'px';
+              label.style.top = (y - 80) + 'px';
+              label.classList.add('visible');
+            }
+          }
+          
+          // Check for debris intersections
+          const debrisIntersects = raycaster.intersectObjects(debrisShards);
+          
+          if (hoveredDebris && (!debrisIntersects.length || debrisIntersects[0].object !== hoveredDebris)) {
+            hoveredDebris = null;
+            // Mark lines for fade out instead of clearing immediately
+            connectionLines.forEach(lineData => {
+              if (!lineData.fadingOut) {
+                lineData.fadingOut = true;
+                lineData.fadeStartTime = Date.now();
+              }
+            });
+            lineAnimations.forEach(lineData => {
+              if (!lineData.fadingOut) {
+                lineData.fadingOut = true;
+                lineData.fadeStartTime = Date.now();
+              }
+            });
+          }
+          
+          if (debrisIntersects.length > 0) {
+            const debris = debrisIntersects[0].object;
+            if (debris !== hoveredDebris) {
+              hoveredDebris = debris;
+              createConnectionLines();
+            }
           }
         }
       }
@@ -993,6 +1126,7 @@
     
     window.addEventListener('click', () => {
       if (currentMode === 'void' && hoveredShard && !isDragging) {
+        label.classList.remove('visible');
         const projectId = hoveredShard.userData.projectId;
         enterProjectWorld(projectId);
       }
@@ -1013,10 +1147,16 @@
         shardMeshes.forEach(shard => {
           const data = shard.userData;
           
-          data.orbitAngle += data.orbitSpeed;
-          shard.position.x = Math.cos(data.orbitAngle) * data.orbitRadius;
-          shard.position.z = Math.sin(data.orbitAngle) * data.orbitRadius;
-          shard.position.y = data.originalY + Math.sin(time * data.floatSpeed + data.floatOffset) * 1;
+          if (!data.isDragging) {
+            data.orbitAngle += data.orbitSpeed;
+            shard.position.x = Math.cos(data.orbitAngle) * data.orbitRadius;
+            shard.position.z = Math.sin(data.orbitAngle) * data.orbitRadius;
+            shard.position.y = data.originalY + Math.sin(time * data.floatSpeed + data.floatOffset) * 1;
+          } else if (data.originalPosition) {
+            // Pull back to original position
+            const pullStrength = 0.01; // Slower snap back
+            shard.position.lerp(data.originalPosition, pullStrength);
+          }
           
           shard.rotation.x += data.rotationSpeedX;
           shard.rotation.y += data.rotationSpeedY;
@@ -1032,15 +1172,80 @@
         debrisShards.forEach(debris => {
           const data = debris.userData;
           
-          data.orbitAngle += data.orbitSpeed;
-          debris.position.x = Math.cos(data.orbitAngle) * data.orbitRadius;
-          debris.position.z = Math.sin(data.orbitAngle) * data.orbitRadius;
-          debris.position.y = data.originalY + Math.sin(time * data.floatSpeed + data.floatOffset) * 0.8;
+          if (!data.isDragging) {
+            data.orbitAngle += data.orbitSpeed;
+            debris.position.x = Math.cos(data.orbitAngle) * data.orbitRadius;
+            debris.position.z = Math.sin(data.orbitAngle) * data.orbitRadius;
+            debris.position.y = data.originalY + Math.sin(time * data.floatSpeed + data.floatOffset) * 0.8;
+          } else if (data.originalPosition) {
+            // Pull back to original position - slower for debris
+            const pullStrength = 0.008; // Even slower snap back for debris
+            debris.position.lerp(data.originalPosition, pullStrength);
+          }
           
           debris.rotation.x += data.rotationSpeedX;
           debris.rotation.y += data.rotationSpeedY;
           debris.rotation.z += data.rotationSpeedZ;
         });
+        
+        // Draw lines from drag connections to dragged object
+        if (draggedObject && dragConnections.length > 0) {
+          dragConnections.forEach((connector, index) => {
+            // Create visual lines showing the pull connections
+            const lineKey = `drag-line-${index}`;
+            let dragLine = scene.getObjectByName(lineKey);
+            
+            if (!dragLine) {
+              const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                connector.position.clone(),
+                draggedObject.position.clone()
+              ]);
+              const lineMaterial = new THREE.LineBasicMaterial({ 
+                color: 0x000000,
+                transparent: true,
+                opacity: 0.6,
+                linewidth: 2
+              });
+              dragLine = new THREE.Line(lineGeometry, lineMaterial);
+              dragLine.name = lineKey;
+              scene.add(dragLine);
+            } else {
+              // Update line positions
+              const positions = dragLine.geometry.attributes.position.array;
+              positions[0] = connector.position.x;
+              positions[1] = connector.position.y;
+              positions[2] = connector.position.z;
+              positions[3] = draggedObject.position.x;
+              positions[4] = draggedObject.position.y;
+              positions[5] = draggedObject.position.z;
+              dragLine.geometry.attributes.position.needsUpdate = true;
+            }
+            
+            // Apply pull force
+            const direction = new THREE.Vector3().subVectors(
+              draggedObject.userData.originalPosition,
+              draggedObject.position
+            );
+            const distance = direction.length();
+            
+            // Apply stronger pull the further it is
+            if (distance > 0.1) {
+              const pullForce = direction.normalize().multiplyScalar(distance * 0.03);
+              draggedObject.position.add(pullForce);
+            }
+          });
+        } else {
+          // Clean up drag lines when not dragging
+          for (let i = 0; i < 5; i++) {
+            const lineKey = `drag-line-${i}`;
+            const dragLine = scene.getObjectByName(lineKey);
+            if (dragLine) {
+              scene.remove(dragLine);
+              dragLine.geometry.dispose();
+              dragLine.material.dispose();
+            }
+          }
+        }
         
         // Animate mist particles
         const positions = particles.geometry.attributes.position.array;
@@ -1080,21 +1285,31 @@
             lineData.progress = Math.min(1, adjustedTime / 0.5); // 0.5 second growth per segment (faster)
             
             if (lineData.progress > 0) {
+              // Get live positions
+              const startPos = lineData.startDebris.position;
+              const endPos = lineData.isFinalSegment ? lineData.endShard.position : lineData.endDebris.position;
+              
               const currentEnd = new THREE.Vector3().lerpVectors(
-                lineData.start,
-                lineData.end,
+                startPos,
+                endPos,
                 lineData.progress
               );
               
-              // Update outline
+              // Update outline with live tracking
               const outlinePositions = lineData.outlineGeometry.attributes.position.array;
+              outlinePositions[0] = startPos.x;
+              outlinePositions[1] = startPos.y;
+              outlinePositions[2] = startPos.z;
               outlinePositions[3] = currentEnd.x;
               outlinePositions[4] = currentEnd.y;
               outlinePositions[5] = currentEnd.z;
               lineData.outlineGeometry.attributes.position.needsUpdate = true;
               
-              // Update center line
+              // Update center line with live tracking
               const centerPositions = lineData.centerGeometry.attributes.position.array;
+              centerPositions[0] = startPos.x;
+              centerPositions[1] = startPos.y;
+              centerPositions[2] = startPos.z;
               centerPositions[3] = currentEnd.x;
               centerPositions[4] = currentEnd.y;
               centerPositions[5] = currentEnd.z;
