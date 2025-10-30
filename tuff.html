@@ -1158,13 +1158,9 @@ const fogBlendColor = new THREE.Color(0x0066ff);
       
       // Create glow for target shard with white outline
       if (targetShard) {
-        const glowGeometry = targetShard.geometry.clone();
-        const glowMaterial = new THREE.MeshBasicMaterial({
-          color: 0xffffff,
-          transparent: true,
-          opacity: 0,
-          side: THREE.BackSide
-        });
+         focusPoint = hoveredShard.position.clone();
+          focusColor.setHex(KEY_COLOR);
+        };
         const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
         glowMesh.position.copy(targetShard.position);
         glowMesh.rotation.copy(targetShard.rotation);
@@ -1185,7 +1181,7 @@ const fogBlendColor = new THREE.Color(0x0066ff);
       
       // (Removed legacy continuous Line/centerLine approach — we're using staggered
       // cylinder segments above to form a single visual chain.)
-    }
+    
     
     // Camera control variables
     let isDragging = false;
